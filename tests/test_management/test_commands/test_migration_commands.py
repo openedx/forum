@@ -436,6 +436,7 @@ def test_delete_all_courses(patched_mongodb: Database[Any]) -> None:
 def test_last_read_times_migration(patched_mongodb: Database[Any]) -> None:
     """Mock test last_read_times migration while migrating read_states of a thread."""
     comment_thread_id = ObjectId()
+    deleted_comment_thread_id = ObjectId()
     last_read_time_for_thread = timezone.now()
     patched_mongodb.users.insert_one(
         {
@@ -451,7 +452,8 @@ def test_last_read_times_migration(patched_mongodb: Database[Any]) -> None:
                 {
                     "course_id": "test_course",
                     "last_read_times": {
-                        str(comment_thread_id): last_read_time_for_thread
+                        str(comment_thread_id): last_read_time_for_thread,
+                        str(deleted_comment_thread_id): last_read_time_for_thread,
                     },
                 }
             ],

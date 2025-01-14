@@ -250,10 +250,15 @@ def migrate_read_states(db: Database[dict[str, Any]], course_id: str) -> None:
                 for thread_id, timestamp in read_state.get(
                     "last_read_times", {}
                 ).items():
-                    thread_id = MongoContent.objects.get(
+                    mongo_content = MongoContent.objects.filter(
                         mongo_id=thread_id
-                    ).content_object_id
-                    thread = CommentThread.objects.filter(id=thread_id).first()
+                    ).first()
+                    thread = mongo_content and mongo_content.content
+
+                    # For older courses using cs_comment_service, the thread may be None
+                    # because cs_comment_service retains read_states for deleted threads
+                    # in the users collection in MongoDB. As a result, MongoContent won't
+                    # have a thread with deleted thread_id from read_states.
                     if not thread:
                         continue
                     existing_read_time = LastReadTime.objects.filter(

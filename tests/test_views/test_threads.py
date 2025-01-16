@@ -1,7 +1,7 @@
 """Test threads api endpoints."""
 
+import time
 from typing import Any, Optional
-
 import pytest
 
 from forum.backends.mongodb.api import MongoBackend
@@ -901,3 +901,78 @@ def is_thread_id_exists_in_user_read_state(user_id: str, thread_id: str) -> bool
             if thread_id in read_state.get("last_read_times", {}):
                 return True
     return False
+
+
+def test_filter_by_group_id(api_client: APIClient, patched_get_backend: Any) -> None:
+    """
+    Filter threads by their group_id. This should return:
+    - Threads with the specified group ID.
+    - Threads that do not belong to any group (i.e., group_id=None).
+    """
+    backend = patched_get_backend
+    setup_models(backend=backend)
+
+    for i in range(2, 5):
+        time.sleep(0.001)
+        backend.create_thread(
+            {
+                "title": f"Thread {i}",
+                "body": f"Thread {i}",
+                "course_id": "course1",
+                "commentable_id": "CommentThread",
+                "author_id": "1",
+                "author_username": "user1",
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "context": "course",
+                "group_id": i,
+            }
+        )
+    params = {"course_id": "course1", "group_id": "2"}
+    response = api_client.get_json("/api/v2/threads", params)
+    assert response.status_code == 200
+    results = response.json().get("collection", [])
+
+    # The result includes one thread from setup_models with group_id=None
+    # and another thread: Thread 2 with group_id=2.
+    assert len(results) == 2
+    assert results[0]["group_id"] == 2
+    assert results[1]["group_id"] is None
+
+
+def test_filter_by_group_ids(api_client: APIClient, patched_get_backend: Any) -> None:
+    """
+    Filter threads by their group IDs. This should return:
+    - Threads with the specified group IDs.
+    - Threads that do not belong to any group (i.e., group_id=None).
+    """
+    backend = patched_get_backend
+    setup_models(backend=backend)
+    for i in range(2, 5):
+        time.sleep(0.001)
+        backend.create_thread(
+            {
+                "title": f"Thread {i}",
+                "body": f"Thread {i}",
+                "course_id": "course1",
+                "commentable_id": "CommentThread",
+                "author_id": "1",
+                "author_username": "user1",
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "context": "course",
+                "group_id": i,
+            }
+        )
+
+    params = {"course_id": "course1", "group_ids": "2,3"}
+    response = api_client.get_json("/api/v2/threads", params)
+    assert response.status_code == 200
+    results = response.json().get("collection", [])
+
+    # The result includes one thread from setup_models with group_id=None
+    # and two threads: Thread 2 and Thread 3 with group_id=2 and group_id=3, respectively.
+    assert len(results) == 3
+    assert results[0]["group_id"] == 3
+    assert results[1]["group_id"] == 2
+    assert results[2]["group_id"] is None

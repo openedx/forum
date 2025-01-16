@@ -1010,6 +1010,8 @@ class MySQLBackend(AbstractBackend):
             "per_page",
             "request_id",
             "commentable_ids",
+            "group_id",
+            "group_ids",
         ]
         if not user_id:
             valid_params.append("user_id")

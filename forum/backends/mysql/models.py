@@ -293,6 +293,7 @@ class CommentThread(Content):
             "created_at": self.created_at,
             "last_activity_at": self.last_activity_at,
             "edit_history": edit_history,
+            "group_id": self.group_id,
         }
 
     def doc_to_hash(self) -> dict[str, Any]:

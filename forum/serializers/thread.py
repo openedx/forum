@@ -26,7 +26,7 @@ class ThreadSerializer(ContentSerializer):
         last_activity_at (datetime): The timestamp of the last activity in the thread.
         closed_by (str or None): The user who closed the thread, if any.
         tags (list): A list of tags associated with the thread.
-        group_id (str or None): The ID of the group associated with the thread, if any.
+        group_id (int or None): The ID of the group associated with the thread, if any.
         pinned (bool): Whether the thread is pinned at the top of the list.
         comment_count (int): The number of comments on the thread.
 
@@ -53,7 +53,7 @@ class ThreadSerializer(ContentSerializer):
     closed_by = serializers.SerializerMethodField()
     close_reason_code = serializers.CharField(allow_null=True, default=None)
     tags = serializers.ListField(default=[])
-    group_id = serializers.CharField(allow_null=True, default=None)
+    group_id = serializers.IntegerField(allow_null=True, default=None)
     pinned = serializers.BooleanField(default=False)
     comments_count = serializers.IntegerField(required=False, source="comment_count")
     read = serializers.SerializerMethodField()

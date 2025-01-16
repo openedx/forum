@@ -357,6 +357,8 @@ def get_user_threads(
     request_id: Optional[str] = None,
     commentable_ids: Optional[str] = None,
     user_id: Optional[str] = None,
+    group_id: Optional[int] = None,
+    group_ids: Optional[int] = None,
 ) -> dict[str, Any]:
     """
     Get the threads for the given thread_ids.
@@ -377,6 +379,8 @@ def get_user_threads(
         "request_id": request_id,
         "commentable_ids": commentable_ids,
         "user_id": user_id,
+        "group_id": group_id,
+        "group_ids": group_ids,
     }
     params = {k: v for k, v in params.items() if v is not None}
     backend.validate_params(params)

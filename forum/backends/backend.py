@@ -309,6 +309,11 @@ class AbstractBackend:
         """Get comments."""
         raise NotImplementedError
 
+    @staticmethod
+    def get_comments_count(**kwargs: Any) -> int:
+        """Get comments count."""
+        raise NotImplementedError
+
     @classmethod
     def create_comment(cls, data: dict[str, Any]) -> Any:
         """Create comment."""

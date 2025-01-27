@@ -62,8 +62,8 @@ class ThreadSerializer(ContentSerializer):
     abuse_flagged_count = serializers.SerializerMethodField(required=False)
     children = serializers.SerializerMethodField(required=False)
     resp_total = serializers.SerializerMethodField(required=False)
-    resp_skip = serializers.IntegerField(required=False)
-    resp_limit = serializers.IntegerField(required=False)
+    resp_skip = serializers.IntegerField(required=False, default=0)
+    resp_limit = serializers.IntegerField(required=False, default=10)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
@@ -204,6 +204,8 @@ class ThreadSerializer(ContentSerializer):
                 depth=0,
                 parent_id=None,
                 sort=sorting_order,
+                resp_skip=obj["resp_skip"],
+                resp_limit=obj["resp_limit"],
             )
             children_data = prepare_comment_data_for_get_children(children)
             serializer = CommentSerializer(
@@ -232,8 +234,11 @@ class ThreadSerializer(ContentSerializer):
             int: The total number of responses, defaulting to 0 if not included.
         """
         if self.with_responses:
-            children = self.get_children(obj) or []
-            return len(children)
+            return self.backend.get_comments_count(
+                comment_thread_id=obj["_id"],
+                depth=0,
+                parent_id=None,
+            )
         return 0
 
     def to_representation(self, instance: dict[str, Any]) -> dict[str, Any]:

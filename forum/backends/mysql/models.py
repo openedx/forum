@@ -377,7 +377,10 @@ class Comment(Content):
             A list of comments.
         """
         sort = kwargs.pop("sort", None)
+        resp_skip = kwargs.pop("resp_skip", 0)
+        resp_limit = kwargs.pop("resp_limit", None)
         comments = Comment.objects.filter(**kwargs)
+        result = []
         if sort:
             if sort == 1:
                 result = sorted(
@@ -389,7 +392,33 @@ class Comment(Content):
                     key=lambda x: (x.sort_key is None, x.sort_key or ""),
                     reverse=True,
                 )
-        return [content.to_dict() for content in result]
+
+        paginated_comments = result or list(comments)
+
+        # Apply pagination if resp_limit is provided
+        if resp_limit is not None:
+            resp_end = resp_skip + resp_limit
+            paginated_comments = result[resp_skip:resp_end]
+        elif resp_skip:  # If resp_limit is None but resp_skip is provided
+            paginated_comments = result[resp_skip:]
+
+        return [content.to_dict() for content in paginated_comments]
+
+    @staticmethod
+    def get_list_total_count(**kwargs: Any) -> int:
+        """
+        Retrieves the total count of comments in the database based on provided filters.
+
+        Args:
+            kwargs: The filter arguments to apply when counting comments.
+
+        Returns:
+            The total number of comments matching the provided filters.
+        """
+        kwargs.pop("sort", None)
+        kwargs.pop("resp_skip", 0)
+        kwargs.pop("resp_limit", None)
+        return Comment.objects.filter(**kwargs).count()
 
     def get_parent_ids(self) -> list[str]:
         """Return a list of all parent IDs of a comment."""

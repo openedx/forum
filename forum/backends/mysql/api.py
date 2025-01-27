@@ -1443,6 +1443,11 @@ class MySQLBackend(AbstractBackend):
         return Comment.get_list(**kwargs)
 
     @staticmethod
+    def get_comments_count(**kwargs: Any) -> int:
+        """Return comments from kwargs."""
+        return Comment.get_list_total_count(**kwargs)
+
+    @staticmethod
     def update_child_count_in_parent_comment(parent_id: str, count: int) -> None:
         """
         Update(increment/decrement) child_count in parent comment.

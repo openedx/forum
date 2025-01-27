@@ -1492,6 +1492,16 @@ class MongoBackend(AbstractBackend):
         return list(Comment().get_list(**kwargs))
 
     @staticmethod
+    def get_comments_count(**kwargs: Any) -> int:
+        """Return comments from kwargs."""
+        if "comment_thread_id" in kwargs:
+            kwargs["comment_thread_id"] = ObjectId(kwargs["comment_thread_id"])
+        if parent_id := kwargs.get("parent_id"):
+            kwargs["parent_id"] = ObjectId(parent_id)
+
+        return Comment().count_documents(kwargs)
+
+    @staticmethod
     def update_comment(comment_id: str, **kwargs: Any) -> int:
         """Update comment."""
         return Comment().update(comment_id, **kwargs)

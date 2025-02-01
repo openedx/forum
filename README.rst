@@ -12,7 +12,9 @@ Installation
 
 Starting from the Open edX Sumac release, the forum app is distributed via the `Tutor forum plugin <https://github.com/overhangio/tutor-forum>`__.
 
-The only prerequisite for installation is a working Open edX platform with `Tutor <https://docs.tutor.edly.io/>`__, on the Sumac release (v19+) or the `main branch <https://docs.tutor.edly.io/tutorials/main.html>`__. Enable the forum by running::
+The only prerequisite for installation is a working Open edX platform with `Tutor <https://docs.tutor.edly.io/>`__, on the Sumac release (v19+) or the `main branch <https://docs.tutor.edly.io/tutorials/main.html>`__. Enable the forum by running:
+
+.. code-block:: bash
 
     tutor plugins enable forum
     tutor local launch
@@ -22,19 +24,25 @@ The forum feature will then be automatically enabled in the Open edX platform, a
 Development
 ***********
 
-Run tests with::
+Run tests with:
+
+.. code-block:: bash
 
     make test-all       # run all tests
     make test           # run unit tests only
     make test-quality   # run quality tests only
     make test-e2e       # run end-to-end tests only
 
-When developing this application, it is recommended to clone this repository locally and mount it within the application containers::
+When developing this application, it is recommended to clone this repository locally and mount it within the application containers:
+
+.. code-block:: bash
 
     git clone git@github.com:openedx/forum.git
     tutor mounts add ./forum/
 
-Check that the forum repository is properly bind-mounted both at build- and run-time by running ``tutor mounts list``. It should output the following::
+Check that the forum repository is properly bind-mounted both at build- and run-time by running ``tutor mounts list``. It should output the following:
+
+.. code-block:: yaml
 
     - name: /home/path/to/forum
       build_mounts:
@@ -48,7 +56,9 @@ Check that the forum repository is properly bind-mounted both at build- and run-
       - service: openedx-dev
         container_path: /mnt/forum
 
-Re-build the openedx-dev image and launch the platform::
+Re-build the openedx-dev image and launch the platform:
+
+.. code-block:: bash
 
     tutor images build openedx-dev
     tutor dev launch
@@ -61,7 +71,9 @@ Deployment of the forum v2 application is gated by two course waffle flags. In a
 Forum v2 toggle
 ---------------
 
-In edx-platform, forum v2 is not enabled by default and edx-platform will keep communicating with the legacy forum app. To enable forum v2 in your Open edX platform, toggle the ``discussions.enable_forum_v2`` course waffle flag::
+In edx-platform, forum v2 is not enabled by default and edx-platform will keep communicating with the legacy forum app. To enable forum v2 in your Open edX platform, toggle the ``discussions.enable_forum_v2`` course waffle flag:
+
+.. code-block:: bash
 
     ./manage.py lms waffle_flag --create --everyone discussions.enable_forum_v2
 
@@ -69,7 +81,9 @@ Note that Tutor enables this flag for all forum plugin users, such that you don'
 
 ⚠️⚠️⚠️ Even if the forum v2 toggle is not enabled, edx-platform will make a call to the forum v2 API in some edge cases. That's because edx-platform needs to determine whether it should use forum v2 or cs_comments_service, based on the value of some course waffle flag. In order to access the course waffle flag, we need to determine the course ID of the current HTTP request. In some requests, the course ID is not available: only the thread ID or the comment ID is. Thus, edx-platform needs to fetch the course ID that is associated to the thread or comment. That information is stored either in MySQL or in MongoDB. Thus, edx-platform needs to call the forum v2 API.
 
-As a consequence, **the forum v2 app needs to have accurate MongoDB configuration settings even if you don't use forum v2**. In a Tutor installation, these settings are set to the right values. In other environments, the following Django settings must be set::
+As a consequence, **the forum v2 app needs to have accurate MongoDB configuration settings even if you don't use forum v2**. In a Tutor installation, these settings are set to the right values. In other environments, the following Django settings must be set:
+
+.. code-block:: python
 
     # Name of the MongoDB database in which forum data is stored
     FORUM_MONGODB_DATABASE = "cs_comments_service"
@@ -82,7 +96,9 @@ As a consequence, **the forum v2 app needs to have accurate MongoDB configuratio
 MySQL backend toggle
 --------------------
 
-To preserve the legacy behaviour of storing data in MongoDB, the forum v2 app makes it possible to keep using MongoDB as a data backend. However, it is strongly recommended to switch to the MySQL storage backend by toggling the ``forum_v2.enable_mysql_backend`` course waffle flag::
+To preserve the legacy behaviour of storing data in MongoDB, the forum v2 app makes it possible to keep using MongoDB as a data backend. However, it is strongly recommended to switch to the MySQL storage backend by toggling the ``forum_v2.enable_mysql_backend`` course waffle flag:
+
+.. code-block:: bash
 
     ./manage.py lms waffle_flag --create --everyone forum_v2.enable_mysql_backend
 
@@ -115,15 +131,21 @@ MongoDB data deletion
 
 After you have successfully migrated your course data from MySQL to MongoDB using the command above, you may delete your MongoDB data using the ``forum_delete_course_from_mongodb`` management command. This command deletes course data from MongoDB for the specified courses.
 
-Run the command with the course ID(s) as an argument::
+Run the command with the course ID(s) as an argument:
+
+.. code-block:: bash
 
    ./manage.py lms forum_delete_course_from_mongodb <course_id_1> <course_id_2>
 
-To delete data for all courses, run the command with the ``all`` argument::
+To delete data for all courses, run the command with the ``all`` argument:
+
+.. code-block:: bash
 
    ./manage.py lms forum_delete_course_from_mongodb all
 
-To try out changes before applying them, use the ``--dry-run`` option. For instance::
+To try out changes before applying them, use the ``--dry-run`` option. For instance:
+
+.. code-block:: bash
 
    ./manage.py lms forum_delete_course_from_mongodb all --dry-run
 
@@ -132,7 +154,9 @@ MongoDB Indexes
 
 To optimize MongoDB query performance, it is crucial to create database indexes. The command will create or update indexes and skip them if they already exist.
 
-To create or update MongoDB indexes, execute the following command::
+To create or update MongoDB indexes, execute the following command:
+
+.. code-block:: bash
 
     ./manage.py lms forum_create_mongodb_indexes
 
@@ -144,7 +168,9 @@ Based on your search backend i.e Elasticsearch or Meilisearch, the commands will
 Initialize Forum Indices
 ========================
 
-To initialize search indices use ``initialize_forum_indices`` command. It allows you to force the creation of new indices even if they already exist::
+To initialize search indices use ``initialize_forum_indices`` command. It allows you to force the creation of new indices even if they already exist:
+
+.. code-block:: bash
 
     ./manage.py lms initialize_forum_indices
 

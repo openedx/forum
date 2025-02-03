@@ -976,3 +976,61 @@ def test_filter_by_group_ids(api_client: APIClient, patched_get_backend: Any) ->
     assert results[0]["group_id"] == 3
     assert results[1]["group_id"] == 2
     assert results[2]["group_id"] is None
+
+
+def test_pagination_in_thread_comments(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """
+    Test pagination in the thread comments, including various cases such as
+    exact limits, skipping, and when there are fewer comments than the limit.
+    """
+    backend = patched_get_backend
+    user_id, thread_id = setup_models(backend, thread_type="question")
+    comments_count = 15  # Total number of comments
+    resp_limit = 10  # Limit per request
+
+    # Create comments
+    for i in range(comments_count):
+        backend.create_comment(
+            {
+                "body": f"Comment {i}",
+                "course_id": "course1",
+                "author_id": user_id,
+                "comment_thread_id": thread_id,
+                "author_username": "user1",
+            }
+        )
+
+    # Case 1: First page (should return first `resp_limit` comments)
+    response = api_client.get_json(
+        f"/api/v2/threads/{thread_id}",
+        params={
+            "with_responses": True,
+            "resp_skip": 0,
+            "resp_limit": resp_limit,
+            "reverse_order": "true",
+        },
+    )
+    assert response.status_code == 200
+    thread = response.json()
+    assert len(thread["non_endorsed_responses"]) == resp_limit
+    assert thread["resp_total"] == comments_count
+    assert thread["resp_skip"] == 0
+    assert thread["resp_limit"] == resp_limit
+
+    # Case 2: Second page (should return remaining comments)
+    response = api_client.get_json(
+        f"/api/v2/threads/{thread_id}",
+        params={
+            "with_responses": True,
+            "resp_skip": resp_limit,
+            "resp_limit": resp_limit,
+            "reverse_order": "true",
+        },
+    )
+    assert response.status_code == 200
+    thread = response.json()
+    assert len(thread["non_endorsed_responses"]) == comments_count - resp_limit
+    assert thread["resp_skip"] == resp_limit
+    assert thread["resp_limit"] == resp_limit

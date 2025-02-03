@@ -114,13 +114,24 @@ class BaseContents(MongoBaseModel):
         Returns:
             A list of content documents.
         """
+        resp_skip = kwargs.pop("resp_skip", 0)
+        resp_limit = kwargs.pop("resp_limit", None)
+
         if self.content_type:
             kwargs["_type"] = self.content_type
+
+        # Apply sorting first if provided
         sort = kwargs.pop("sort", None)
-        result = self._collection.find(kwargs)
+        query = self._collection.find(kwargs)
         if sort:
-            return result.sort("sk", sort)
-        return result
+            query = query.sort("sk", sort)
+
+        # Apply pagination after sorting
+        query = query.skip(resp_skip)
+        if resp_limit is not None:
+            query = query.limit(resp_limit)
+
+        return query
 
     @classmethod
     def get_votes_dict(cls, up: list[str], down: list[str]) -> dict[str, Any]:

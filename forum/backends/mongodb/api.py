@@ -457,7 +457,17 @@ class MongoBackend(AbstractBackend):
             user = Users().find_one(
                 {"_id": user_id, "read_states.course_id": course_id}
             )
-            read_state = user["read_states"][0] if user else {}
+            if not user:
+                return {}
+
+            read_state = next(
+                (
+                    rs
+                    for rs in user.get("read_states", [])
+                    if rs.get("course_id") == course_id
+                ),
+                None,
+            )
             if read_state:
                 read_dates = read_state.get("last_read_times", {})
                 for thread in threads:

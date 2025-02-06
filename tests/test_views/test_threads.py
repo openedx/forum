@@ -1,6 +1,7 @@
 """Test threads api endpoints."""
 
 import time
+from datetime import datetime
 from typing import Any, Optional
 import pytest
 
@@ -1114,3 +1115,26 @@ def test_read_states_deletion_on_thread_deletion_with_multiple_read_states(
     assert patched_mongo_backend.get_thread(thread_id_1) is None
     assert is_thread_id_exists_in_user_read_state(user_id_1, thread_id_1) is False
     assert is_thread_id_exists_in_user_read_state(user_id_2, thread_id_2) is True
+
+
+def test_read_states_deletion_checks_thread_id_existence(
+    api_client: APIClient, patched_mongo_backend: MongoBackend
+) -> None:
+    """Test that read state deletion only occurs when thread_id exists in last_read_times."""
+    user_id, thread_id = setup_models(backend=patched_mongo_backend)
+
+    other_thread_id = "other_thread_id"
+    read_states = [
+        {
+            "course_id": "course1",
+            "last_read_times": {other_thread_id: datetime.now()},
+        }
+    ]
+    patched_mongo_backend.update_user(user_id, {"read_states": read_states})
+
+    assert is_thread_id_exists_in_user_read_state(user_id, other_thread_id) is True
+    assert is_thread_id_exists_in_user_read_state(user_id, thread_id) is False
+
+    response = api_client.delete_json(f"/api/v2/threads/{thread_id}")
+    assert response.status_code == 200
+    assert is_thread_id_exists_in_user_read_state(user_id, other_thread_id) is True

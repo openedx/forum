@@ -123,7 +123,8 @@ class Users(MongoBaseModel):
         for user in list(users):
             updated_read_states = []
             for read_state in user.get("read_states", []):
-                del read_state["last_read_times"][thread_id]
+                if read_state["last_read_times"].get(thread_id):
+                    del read_state["last_read_times"][thread_id]
                 updated_read_states.append(read_state)
             self._collection.update_one(
                 {"_id": user["_id"]}, {"$set": {"read_states": updated_read_states}}

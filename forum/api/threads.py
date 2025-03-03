@@ -359,6 +359,7 @@ def get_user_threads(
     user_id: Optional[str] = None,
     group_id: Optional[int] = None,
     group_ids: Optional[int] = None,
+    **kwargs: Any,
 ) -> dict[str, Any]:
     """
     Get the threads for the given thread_ids.

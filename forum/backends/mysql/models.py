@@ -208,7 +208,7 @@ class CommentThread(Content):
         ("standalone", "Standalone"),
     ]
 
-    title: models.CharField[str, str] = models.CharField(max_length=255)
+    title: models.CharField[str, str] = models.CharField(max_length=1024)
     thread_type: models.CharField[str, str] = models.CharField(
         max_length=50, choices=THREAD_TYPE_CHOICES, default="discussion"
     )

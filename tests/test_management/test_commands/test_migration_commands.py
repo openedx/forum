@@ -21,6 +21,8 @@ from forum.models import (
     Subscription,
     UserVote,
 )
+from forum.utils import get_trunc_title
+
 
 pytestmark = pytest.mark.django_db
 
@@ -509,3 +511,29 @@ def test_last_read_times_migration(patched_mongodb: Database[Any]) -> None:
     ).first()
     assert updated_last_read_time is not None
     assert updated_last_read_time.timestamp > last_read_time.timestamp
+
+
+def test_get_trunc_title() -> None:
+    """
+    Test the get_trunc_title function for various scenarios:
+    - Title shorter than 1024 characters
+    - Title exactly 1024 characters long
+    - Title longer than 1024 characters
+    - Empty title
+    """
+    # Test case 1: Short title
+    title_short = "Short title"
+    assert get_trunc_title(title_short) == title_short
+
+    # Test case 2: Title exactly 1024 characters
+    title_exact = "a" * 1024
+    assert get_trunc_title(title_exact) == title_exact
+
+    # Test case 3: Title longer than 1024 characters
+    title_long = "a" * 1025
+    expected_long = "a" * 1024
+    assert get_trunc_title(title_long) == expected_long
+
+    # Test case 4: Empty title
+    title_empty = ""
+    assert get_trunc_title(title_empty) == title_empty

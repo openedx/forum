@@ -22,7 +22,7 @@ from forum.models import (
     Subscription,
     UserVote,
 )
-from forum.utils import make_aware
+from forum.utils import make_aware, get_trunc_title
 
 
 def get_all_course_ids(db: Database[dict[str, Any]]) -> list[str]:
@@ -85,7 +85,7 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
         thread = CommentThread.objects.create(
             author=author,
             course_id=thread_data["course_id"],
-            title=thread_data.get("title", ""),
+            title=get_trunc_title(thread_data.get("title", "")),
             body=thread_data["body"],
             thread_type=thread_data.get("thread_type", "discussion"),
             context=thread_data.get("context", "course"),

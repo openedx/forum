@@ -248,5 +248,18 @@ def get_sort_criteria(sort_key: str) -> Sequence[tuple[str, int]]:
         return []
 
 
+def get_trunc_title(title: str) -> str:
+    """
+    Truncate a title to 1024 characters for mysql db.
+
+    Args:
+        title (str): A title string.
+
+    Returns:
+        str: A truncated title string with length less than 1025 characters.
+    """
+    return title[:1024]
+
+
 class ForumV2RequestError(Exception):
     pass

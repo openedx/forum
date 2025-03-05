@@ -93,7 +93,7 @@ def get_str_value_from_collection(collection: dict[str, Any], key: str) -> str:
     try:
         value = str(collection[key])
     except (TypeError, ValueError, KeyError) as exception:
-        raise ValueError("Invalud Value") from exception
+        raise ValueError("Invalid Value") from exception
     return value
 
 

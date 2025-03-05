@@ -695,7 +695,7 @@ class MongoBackend(AbstractBackend):
                 collection = []
             else:
                 thread_ids = [str(thread["_id"]) for thread in threads]
-                collection = cls.threads_presentor(
+                collection = cls.threads_presenter(
                     thread_ids, user_id, course_id, count_flagged
                 )
 
@@ -744,7 +744,7 @@ class MongoBackend(AbstractBackend):
         }
 
     @classmethod
-    def threads_presentor(
+    def threads_presenter(
         cls,
         thread_ids: list[str],
         user_id: str,

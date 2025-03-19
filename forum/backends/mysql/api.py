@@ -772,7 +772,7 @@ class MySQLBackend(AbstractBackend):
         if len(threads) == 0:
             collection = []
         else:
-            collection = cls.threads_presentor(
+            collection = cls.threads_presenter(
                 threads, user_id, course_id, count_flagged
             )
 
@@ -815,7 +815,7 @@ class MySQLBackend(AbstractBackend):
         }
 
     @classmethod
-    def threads_presentor(
+    def threads_presenter(
         cls,
         thread_ids: list[str],
         user_id: str,
@@ -891,13 +891,13 @@ class MySQLBackend(AbstractBackend):
             raise exception if object does not exists.
             return object
         """
-        modelss = {
+        models = {
             "CommentThread": CommentThread,
             "Comment": Comment,
         }
 
         try:
-            instance = modelss[model].objects.get(pk=int(obj_id))
+            instance = models[model].objects.get(pk=int(obj_id))
         except ObjectDoesNotExist as exc:
             raise ObjectDoesNotExist from exc
 

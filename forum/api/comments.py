@@ -155,7 +155,6 @@ def update_comment(
     editing_user_id: Optional[str] = None,
     edit_reason_code: Optional[str] = None,
     endorsement_user_id: Optional[str] = None,
-    course_key: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Update an existing child/parent comment.
@@ -175,7 +174,7 @@ def update_comment(
     Response:
         The details of the comment that is updated.
     """
-    backend = get_backend(course_key)()
+    backend = get_backend(course_id)()
     try:
         backend.validate_object("Comment", comment_id)
     except ObjectDoesNotExist as exc:

@@ -150,7 +150,7 @@ class AbstractBackend:
         raise NotImplementedError
 
     @classmethod
-    def threads_presentor(
+    def threads_presenter(
         cls,
         thread_ids: list[str],
         user_id: str,

@@ -4,35 +4,14 @@
 apiVersion: backstage.io/v1alpha1
 kind: ""
 metadata:
-  name: 'forum'
+  name: "forum"
   description: "openedx forum app"
   annotations:
-    # The openedx.org/release key is described in OEP-10:
-    #   https://open-edx-proposals.readthedocs.io/en/latest/oep-0010-proc-openedx-releases.html
-    # The FAQ might also be helpful: https://openedx.atlassian.net/wiki/spaces/COMM/pages/1331268879/Open+edX+Release+FAQ
-    # Note: This will only work if the repo is in the `openedx` org in github.  Repos in other orgs that have this
-    # setting will still be treated as if they don't want to be part of the Open edX releases.
-    openedx.org/release: null
-    # (Optional) Annotation keys and values can be whatever you want.
-    # We use it in Open edX repos to have a comma-separated list of GitHub user
-    # names that might be interested in changes to the architecture of this
-    # component.
+    openedx.org/release: "master"
     openedx.org/arch-interest-groups: ""
 spec:
-
-  # (Required) This can be a group(`group:<group_name>` or a user(`user:<github_username>`)
-  owner: ""
-
-  # (Required) Acceptable Type Values: service, website, library
-  type: ''
-
-  # (Required) Acceptable Lifecycle Values: experimental, production, deprecated
-  lifecycle: 'experimental'
-
-  # (Optional) The value can be the name of any known component.
-  subcomponentOf: '<name_of_a_component>'
-
-  # (Optional) An array of different components or resources.
+  owner: "group:wg-maintainers-forums"
+  type: "service"
+  lifecycle: "production"
   dependsOn:
-  - '<component_or_resource>'
-  - '<another_component_or_resource>'
+    - lms

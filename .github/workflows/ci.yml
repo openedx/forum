@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ['3.11', '3.12']
-        toxenv: [py, quality, django42, e2e]
+        toxenv: [py, quality, django42, django52, e2e]
 
     steps:
       - uses: actions/checkout@v4

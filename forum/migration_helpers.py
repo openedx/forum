@@ -250,9 +250,12 @@ def migrate_read_states(db: Database[dict[str, Any]], course_id: str) -> None:
                 for thread_id, timestamp in read_state.get(
                     "last_read_times", {}
                 ).items():
-                    mongo_content = MongoContent.objects.filter(
-                        mongo_id=thread_id
-                    ).first()
+                    try:
+                        mongo_content = MongoContent.objects.filter(
+                            mongo_id=thread_id
+                        ).first()
+                    except MongoContent.DoesNotExist:
+                        continue
                     thread = mongo_content and mongo_content.content
 
                     # For older courses using cs_comment_service, the thread may be None

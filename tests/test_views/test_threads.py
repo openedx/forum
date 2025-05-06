@@ -74,7 +74,7 @@ def create_comments_in_a_thread(backend: Any, thread_id: str) -> tuple[str, str]
 
 
 def test_update_thread(api_client: APIClient, patched_get_backend: Any) -> None:
-    """Test updaing a thread."""
+    """Test updating a thread."""
     backend = patched_get_backend
     user_id, thread_id = setup_models(backend=backend)
     response = api_client.put_json(

@@ -1031,6 +1031,7 @@ class MongoBackend(AbstractBackend):
             depth=data.get("depth", 0),
             comment_thread_id=data["comment_thread_id"],
             parent_id=data.get("parent_id"),
+            endorsed=data.get("endorsed", False),
         )
 
         if data.get("parent_id"):

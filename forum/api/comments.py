@@ -88,6 +88,7 @@ def create_child_comment(
     course_id: str,
     anonymous: bool,
     anonymous_to_peers: bool,
+    endorsed: bool,
 ) -> dict[str, Any]:
     """
     Create a new child comment.
@@ -121,6 +122,7 @@ def create_child_comment(
             "depth": 1,
             "comment_thread_id": backend.get_thread_id_by_comment_id(parent_comment_id),
             "parent_id": parent_comment_id,
+            "endorsed": endorsed,
         }
     )
     comment = backend.get_comment(comment_id)
@@ -253,6 +255,7 @@ def create_parent_comment(
     course_id: str,
     anonymous: bool,
     anonymous_to_peers: bool,
+    endorsed: bool,
 ) -> dict[str, Any]:
     """
     Create a new parent comment.
@@ -285,6 +288,7 @@ def create_parent_comment(
             "anonymous_to_peers": anonymous_to_peers,
             "depth": 0,
             "comment_thread_id": thread_id,
+            "endorsed": endorsed,
         }
     )
     if not comment_id:

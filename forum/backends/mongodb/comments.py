@@ -78,6 +78,7 @@ class Comment(BaseContents):
         abuse_flaggers: Optional[list[str]] = None,
         historical_abuse_flaggers: Optional[list[str]] = None,
         visible: bool = True,
+        endorsed: bool = False,
     ) -> str:
         """
         Inserts a new comment document into the database.
@@ -109,7 +110,7 @@ class Comment(BaseContents):
             "body": body,
             "course_id": course_id,
             "_type": self.content_type,
-            "endorsed": False,
+            "endorsed": endorsed,
             "anonymous": anonymous,
             "anonymous_to_peers": anonymous_to_peers,
             "author_id": author_id,

@@ -1485,6 +1485,7 @@ class MySQLBackend(AbstractBackend):
             comment_thread=comment_thread,
             parent=parent,
             depth=data.get("depth", 0),
+            endorsed=data.get("endorsed", False),
         )
         new_comment.sort_key = new_comment.get_sort_key()
         new_comment.save()

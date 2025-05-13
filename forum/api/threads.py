@@ -212,7 +212,6 @@ def update_thread(
     close_reason_code: Optional[str] = None,
     closing_user_id: Optional[str] = None,
     endorsed: Optional[bool] = None,
-    course_key: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Update the thread for the given thread_id.
@@ -223,7 +222,7 @@ def update_thread(
     Response:
         The details of the thread that is updated.
     """
-    backend = get_backend(course_key)()
+    backend = get_backend(course_id)()
     try:
         thread = backend.validate_object("CommentThread", thread_id)
     except ObjectDoesNotExist as exc:
@@ -235,7 +234,6 @@ def update_thread(
     data = {
         "title": title,
         "body": body,
-        "course_id": course_id,
         "anonymous": anonymous,
         "anonymous_to_peers": anonymous_to_peers,
         "closed": closed,

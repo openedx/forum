@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 def get_user(
     user_id: str,
-    group_ids: list[int],
+    group_ids: Optional[list[int]] = None,
     course_id: Optional[str] = None,
     complete: Optional[bool] = False,
 ) -> dict[str, Any]:

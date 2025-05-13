@@ -155,7 +155,6 @@ def update_comment(
     editing_user_id: Optional[str] = None,
     edit_reason_code: Optional[str] = None,
     endorsement_user_id: Optional[str] = None,
-    course_key: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Update an existing child/parent comment.
@@ -175,7 +174,7 @@ def update_comment(
     Response:
         The details of the comment that is updated.
     """
-    backend = get_backend(course_key)()
+    backend = get_backend(course_id)()
     try:
         backend.validate_object("Comment", comment_id)
     except ObjectDoesNotExist as exc:
@@ -186,16 +185,15 @@ def update_comment(
 
     updated_comment = backend.update_comment_and_get_updated_comment(
         comment_id,
-        body,
-        course_id,
-        user_id,
-        anonymous,
-        anonymous_to_peers,
-        endorsed,
-        closed,
-        editing_user_id,
-        edit_reason_code,
-        endorsement_user_id,
+        body=body,
+        user_id=user_id,
+        anonymous=anonymous,
+        anonymous_to_peers=anonymous_to_peers,
+        endorsed=endorsed,
+        closed=closed,
+        editing_user_id=editing_user_id,
+        edit_reason_code=edit_reason_code,
+        endorsement_user_id=endorsement_user_id,
     )
     if not updated_comment:
         log.error("Forumv2RequestError for create child comment request.")

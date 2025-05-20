@@ -1,0 +1,96 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="HtmlUnknownAttribute" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="myValues">
+        <value>
+          <list size="1">
+            <item index="0" class="java.lang.String" itemvalue="scoped" />
+          </list>
+        </value>
+      </option>
+      <option name="myCustomValuesEnabled" value="true" />
+    </inspection_tool>
+    <inspection_tool class="HtmlUnknownTag" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="myValues">
+        <value>
+          <list size="7">
+            <item index="0" class="java.lang.String" itemvalue="nobr" />
+            <item index="1" class="java.lang.String" itemvalue="noembed" />
+            <item index="2" class="java.lang.String" itemvalue="comment" />
+            <item index="3" class="java.lang.String" itemvalue="noscript" />
+            <item index="4" class="java.lang.String" itemvalue="embed" />
+            <item index="5" class="java.lang.String" itemvalue="script" />
+            <item index="6" class="java.lang.String" itemvalue="style" />
+          </list>
+        </value>
+      </option>
+      <option name="myCustomValuesEnabled" value="true" />
+    </inspection_tool>
+    <inspection_tool class="PyCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ourVersions">
+        <value>
+          <list size="2">
+            <item index="0" class="java.lang.String" itemvalue="3.8" />
+            <item index="1" class="java.lang.String" itemvalue="3.11" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="46">
+            <item index="0" class="java.lang.String" itemvalue="aws-cdk.aws-sam" />
+            <item index="1" class="java.lang.String" itemvalue="aws-cdk.aws-lambda-nodejs" />
+            <item index="2" class="java.lang.String" itemvalue="aws-cdk.aws-certificatemanager" />
+            <item index="3" class="java.lang.String" itemvalue="aws-cdk.core" />
+            <item index="4" class="java.lang.String" itemvalue="aws-cdk.aws-ecr-assets" />
+            <item index="5" class="java.lang.String" itemvalue="aws-cdk.aws-cloudformation" />
+            <item index="6" class="java.lang.String" itemvalue="aws-cdk.aws-codeguruprofiler" />
+            <item index="7" class="java.lang.String" itemvalue="aws-cdk.aws-iam" />
+            <item index="8" class="java.lang.String" itemvalue="aws-cdk.aws-sqs" />
+            <item index="9" class="java.lang.String" itemvalue="aws-cdk.aws-ec2" />
+            <item index="10" class="java.lang.String" itemvalue="aws-cdk.aws-ecr" />
+            <item index="11" class="java.lang.String" itemvalue="aws-cdk.aws-elasticloadbalancingv2" />
+            <item index="12" class="java.lang.String" itemvalue="aws-cdk.aws-opensearchservice" />
+            <item index="13" class="java.lang.String" itemvalue="aws-cdk.aws-elasticloadbalancing" />
+            <item index="14" class="java.lang.String" itemvalue="aws-cdk.custom-resources" />
+            <item index="15" class="java.lang.String" itemvalue="aws-cdk.aws-codestarnotifications" />
+            <item index="16" class="java.lang.String" itemvalue="aws-cdk.aws-eks" />
+            <item index="17" class="java.lang.String" itemvalue="aws-cdk.aws-lambda" />
+            <item index="18" class="java.lang.String" itemvalue="aws-cdk.aws-ssm" />
+            <item index="19" class="java.lang.String" itemvalue="aws-cdk.cloud-assembly-schema" />
+            <item index="20" class="java.lang.String" itemvalue="aws-cdk.aws-cloudwatch" />
+            <item index="21" class="java.lang.String" itemvalue="aws-cdk.aws-events" />
+            <item index="22" class="java.lang.String" itemvalue="aws-cdk.aws-kms" />
+            <item index="23" class="java.lang.String" itemvalue="aws-cdk.aws-acmpca" />
+            <item index="24" class="java.lang.String" itemvalue="aws-cdk.aws-signer" />
+            <item index="25" class="java.lang.String" itemvalue="aws-cdk.aws-autoscaling" />
+            <item index="26" class="java.lang.String" itemvalue="aws-cdk.aws-s3" />
+            <item index="27" class="java.lang.String" itemvalue="aws-cdk.aws-elasticache" />
+            <item index="28" class="java.lang.String" itemvalue="aws-cdk.aws-secretsmanager" />
+            <item index="29" class="java.lang.String" itemvalue="aws-cdk.aws-applicationautoscaling" />
+            <item index="30" class="java.lang.String" itemvalue="aws-cdk.lambda-layer-awscli" />
+            <item index="31" class="java.lang.String" itemvalue="aws-cdk.aws-logs" />
+            <item index="32" class="java.lang.String" itemvalue="aws-cdk.aws-elasticsearch" />
+            <item index="33" class="java.lang.String" itemvalue="aws-cdk.cx-api" />
+            <item index="34" class="java.lang.String" itemvalue="aws-cdk.aws-sns" />
+            <item index="35" class="java.lang.String" itemvalue="aws-cdk.aws-route53" />
+            <item index="36" class="java.lang.String" itemvalue="aws-cdk.lambda-layer-node-proxy-agent" />
+            <item index="37" class="java.lang.String" itemvalue="aws-cdk.aws-autoscaling-common" />
+            <item index="38" class="java.lang.String" itemvalue="aws-cdk.region-info" />
+            <item index="39" class="java.lang.String" itemvalue="aws-cdk.aws-efs" />
+            <item index="40" class="java.lang.String" itemvalue="aws-cdk.assets" />
+            <item index="41" class="java.lang.String" itemvalue="aws-cdk.aws-s3-assets" />
+            <item index="42" class="java.lang.String" itemvalue="aws-cdk.lambda-layer-kubectl" />
+            <item index="43" class="java.lang.String" itemvalue="jsii" />
+            <item index="44" class="java.lang.String" itemvalue="attrs" />
+            <item index="45" class="java.lang.String" itemvalue="tutor" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

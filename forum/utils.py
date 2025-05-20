@@ -1,6 +1,7 @@
 """Forum Utils."""
 
 import logging
+import unicodedata
 from datetime import datetime
 from typing import Any, Sequence
 
@@ -258,6 +259,8 @@ def get_trunc_title(title: str) -> str:
     Returns:
         str: A truncated title string with length less than 1025 characters.
     """
+    # Remove emojis from the title
+    title = ''.join(char for char in title if unicodedata.category(char)[0] != 'S')
     return title[:1024]
 
 

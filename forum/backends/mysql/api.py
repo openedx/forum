@@ -148,11 +148,17 @@ class MySQLBackend(AbstractBackend):
             set(entity.historical_abuse_flaggers) | set(entity.abuse_flaggers)
         )
         for flagger_id in historical_abuse_flaggers:
-            HistoricalAbuseFlagger.objects.create(
-                content=entity,
-                user=User.objects.get(pk=flagger_id),
-                flagged_at=timezone.now(),
-            )
+            # Skip if HistoricalAbuseFlagger already exists for this user and entity
+            if not HistoricalAbuseFlagger.objects.filter(
+                content_type=entity.content_type,
+                content_object_id=entity.pk,
+                user_id=flagger_id,
+            ).exists():
+                HistoricalAbuseFlagger.objects.create(
+                    content=entity,
+                    user_id=flagger_id,
+                    flagged_at=timezone.now(),
+                )
         AbuseFlagger.objects.filter(
             content_object_id=entity.pk, content_type=entity.content_type
         ).delete()

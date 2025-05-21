@@ -1913,9 +1913,26 @@ class MySQLBackend(AbstractBackend):
             user.email = data["email"]
         if "default_sort_key" in data:
             forum_user.default_sort_key = data["default_sort_key"]
-        if "read_states" in data and data["read_states"] == []:
-            user_read_states = ReadState.objects.filter(user=user)
-            user_read_states.delete()
+        if "read_states" in data:
+            # Remove all existing ReadState objects for this user
+            ReadState.objects.filter(user=user).delete()
+            # Insert new ReadState objects from data['read_states']
+            for state in data["read_states"]:
+                last_read_times = state.get("last_read_times", {})
+
+                for thread_id, dt in last_read_times.items():
+                    thread = CommentThread.objects.get(pk=thread_id)
+                    read_state, _ = ReadState.objects.get_or_create(
+                        user=user, course_id=thread.course_id
+                    )
+
+                    LastReadTime.objects.update_or_create(
+                        read_state=read_state,
+                        comment_thread=thread,
+                        defaults={
+                            "timestamp": dt,
+                        },
+                    )
 
         user.save()
         forum_user.save()

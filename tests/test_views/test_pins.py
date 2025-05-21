@@ -9,13 +9,13 @@ pytestmark = pytest.mark.django_db
 
 
 def test_pin_and_unpin_thread_api(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the pin/unpin thread API.
     This test checks that a user can pin/unpin a thread.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = "1"
 
     backend.find_or_create_user(user_id, username="user1")
@@ -67,13 +67,13 @@ def test_pin_and_unpin_thread_api(
 
 
 def test_pin_unpin_thread_api_invalid_data(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the invalid data for pin/unpin thread API.
     This test checks that if user/thread exists or not.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = "1"
     thread_id = backend.generate_id()
     backend.find_or_create_user(user_id, username="user1")

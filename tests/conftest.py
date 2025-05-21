@@ -96,3 +96,13 @@ def patched_mongo_backend(monkeypatch: pytest.MonkeyPatch) -> Generator[Any, Any
         lambda course_id: False,
     )
     yield MongoBackend
+
+
+@pytest.fixture(autouse=True)
+def patched_mysql_backend(monkeypatch: pytest.MonkeyPatch) -> Generator[Any, Any, Any]:
+    """Return the patched mysql function for MySQL backend."""
+    monkeypatch.setattr(
+        "forum.backend.is_mysql_backend_enabled",
+        lambda course_id: True,
+    )
+    yield MySQLBackend

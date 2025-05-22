@@ -1,5 +1,6 @@
 """Migration commands helper methods."""
 
+import logging
 from typing import Any
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
@@ -23,6 +24,8 @@ from forum.models import (
     UserVote,
 )
 from forum.utils import make_aware, get_trunc_title
+
+logger = logging.getLogger(__name__)
 
 
 def get_all_course_ids(db: Database[dict[str, Any]]) -> list[str]:
@@ -76,7 +79,13 @@ def migrate_content(db: Database[dict[str, Any]], course_id: str) -> None:
 
 def create_or_update_thread(thread_data: dict[str, Any]) -> None:
     """Create or update a thread."""
-    author = User.objects.get(id=int(thread_data["author_id"]))
+    try:
+        author = User.objects.get(id=int(thread_data["author_id"]))
+    except User.DoesNotExist:
+        logger.warning(
+            f"User {thread_data['author_id']} does not exist in thread id {thread_data['_id']}"
+        )
+        return
     mongo_thread_id = str(thread_data["_id"])
     mongo_content, _ = MongoContent.objects.get_or_create(
         mongo_id=mongo_thread_id,
@@ -111,14 +120,26 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
 
 def create_or_update_comment(comment_data: dict[str, Any]) -> None:
     """Create or update a comment."""
-    author = User.objects.get(id=int(comment_data["author_id"]))
+    try:
+        author = User.objects.get(id=int(comment_data["author_id"]))
+    except User.DoesNotExist:
+        logger.warning(
+            f"User {comment_data['author_id']} does not exist in comment with thread id {comment_data['comment_thread_id']}"
+        )
+        return
     mongo_thread_id = str(comment_data["comment_thread_id"])
     mongo_thread = MongoContent.objects.get(mongo_id=mongo_thread_id)
     thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
     parent = None
     if "parent_id" in comment_data and comment_data["parent_id"] != "None":
         parent_id = str(comment_data["parent_id"])
-        mongo_parent_comment = MongoContent.objects.get(mongo_id=parent_id)
+        try:
+            mongo_parent_comment = MongoContent.objects.get(mongo_id=parent_id)
+        except MongoContent.DoesNotExist:
+            logger.warning(
+                f"Comment {parent_id} does not exist in comment with thread id {comment_data['comment_thread_id']}"
+            )
+            return
         parent = Comment.objects.filter(
             id=mongo_parent_comment.content_object_id
         ).first()
@@ -159,7 +180,13 @@ def create_votes(content: CommentThread | Comment, votes_data: dict[str, Any]) -
     """Create or update votes for a content."""
     for vote_type in ["up", "down"]:
         for user_id in votes_data.get(vote_type, []):
-            user = User.objects.get(pk=int(user_id))
+            try:
+                user = User.objects.get(pk=int(user_id))
+            except User.DoesNotExist:
+                logger.warning(
+                    f"User {user_id} does not exist in creating votes for content {content.pk}"
+                )
+                continue
             UserVote.objects.update_or_create(
                 user=user,
                 content_type=content.content_type,
@@ -175,11 +202,18 @@ def create_or_update_edit_history(content: dict[str, Any]) -> None:
     mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
     content_object = content_type.objects.get(pk=mongo_content.content_object_id)
     for edit in edit_history:
+        try:
+            editor = User.objects.get(pk=int(edit["author_id"]))
+        except User.DoesNotExist:
+            logger.warning(
+                f"User {edit['author_id']} does not exist in creating edit history for content {content_object.pk}"
+            )
+            continue
         EditHistory.objects.get_or_create(
             content_object_id=content_object.pk,
             content_type=content_object.content_type,
-            created_at=edit["created_at"],
-            editor=User.objects.get(pk=int(edit["author_id"])),
+            created_at=make_aware(edit["created_at"]),
+            editor=editor,
             defaults={
                 "original_body": edit["original_body"],
                 "reason_code": edit["reason_code"],
@@ -193,7 +227,13 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
     mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
     content_object = content_type.objects.get(pk=mongo_content.content_object_id)
     for user_id in content["abuse_flaggers"]:
-        user = User.objects.get(pk=int(user_id))
+        try:
+            user = User.objects.get(pk=int(user_id))
+        except User.DoesNotExist:
+            logger.warning(
+                f"User {user_id} does not exist in creating abuse flaggers for content {content_object.pk}"
+            )
+            continue
         AbuseFlagger.objects.update_or_create(
             user=user,
             content_type=content_object.content_type,
@@ -203,7 +243,13 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
             },
         )
     for user_id in content["historical_abuse_flaggers"]:
-        user = User.objects.get(pk=int(user_id))
+        try:
+            user = User.objects.get(pk=int(user_id))
+        except User.DoesNotExist:
+            logger.warning(
+                f"User {user_id} does not exist in creating historical abuse flaggers for content {content_object.pk}"
+            )
+            continue
         HistoricalAbuseFlagger.objects.update_or_create(
             user=user,
             content_type=content_object.content_type,
@@ -218,7 +264,13 @@ def migrate_subscriptions(db: Database[dict[str, Any]], content_id: str) -> None
     """Migrate subscriptions from mongo to mysql."""
     subscriptions = db.subscriptions.find({"source_id": str(content_id)})
     for sub in subscriptions:
-        user = User.objects.get(id=int(sub["subscriber_id"]))
+        try:
+            user = User.objects.get(id=int(sub["subscriber_id"]))
+        except User.DoesNotExist:
+            logger.warning(
+                f"User {sub['subscriber_id']} does not exist in creating subscriptions for content {content_id}"
+            )
+            continue
         content_type = (
             CommentThread if sub["source_type"] == "CommentThread" else Comment
         )
@@ -230,8 +282,8 @@ def migrate_subscriptions(db: Database[dict[str, Any]], content_id: str) -> None
                 source_content_type=content.content_type,
                 source_object_id=content.pk,
                 defaults={
-                    "created_at": sub.get("created_at", timezone.now()),
-                    "updated_at": sub.get("updated_at", timezone.now()),
+                    "created_at": make_aware(sub.get("created_at", timezone.now())),
+                    "updated_at": make_aware(sub.get("updated_at", timezone.now())),
                 },
             )
 
@@ -250,9 +302,12 @@ def migrate_read_states(db: Database[dict[str, Any]], course_id: str) -> None:
                 for thread_id, timestamp in read_state.get(
                     "last_read_times", {}
                 ).items():
-                    mongo_content = MongoContent.objects.filter(
-                        mongo_id=thread_id
-                    ).first()
+                    try:
+                        mongo_content = MongoContent.objects.filter(
+                            mongo_id=thread_id
+                        ).first()
+                    except MongoContent.DoesNotExist:
+                        continue
                     thread = mongo_content and mongo_content.content
 
                     # For older courses using cs_comment_service, the thread may be None

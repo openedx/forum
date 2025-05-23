@@ -25,6 +25,14 @@ from forum.models import (
 from forum.utils import make_aware, get_trunc_title
 
 
+def get_user_or_none(user_id: Any) -> User | None:
+    """Get a user by ID or return None if not found."""
+    try:
+        return User.objects.get(id=int(user_id))
+    except User.DoesNotExist:
+        return None
+
+
 def get_all_course_ids(db: Database[dict[str, Any]]) -> list[str]:
     """Get all course IDs from MongoDB."""
     return db.contents.distinct("course_id")
@@ -34,9 +42,9 @@ def migrate_users(db: Database[dict[str, Any]], course_id: str) -> None:
     """Migrate users from MongoDB to MySQL."""
     users = db.users.find({"course_stats.course_id": course_id})
     for user_data in users:
-        user, _ = User.objects.get_or_create(
-            id=int(user_data["_id"]), defaults={"username": user_data["username"]}
-        )
+        user = get_user_or_none(user_data["_id"])
+        if not user:
+            continue
 
         _, _ = ForumUser.objects.get_or_create(
             user=user,
@@ -76,7 +84,9 @@ def migrate_content(db: Database[dict[str, Any]], course_id: str) -> None:
 
 def create_or_update_thread(thread_data: dict[str, Any]) -> None:
     """Create or update a thread."""
-    author = User.objects.get(id=int(thread_data["author_id"]))
+    author = get_user_or_none(thread_data["author_id"])
+    if not author:
+        return
     mongo_thread_id = str(thread_data["_id"])
     mongo_content, _ = MongoContent.objects.get_or_create(
         mongo_id=mongo_thread_id,
@@ -111,7 +121,9 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
 
 def create_or_update_comment(comment_data: dict[str, Any]) -> None:
     """Create or update a comment."""
-    author = User.objects.get(id=int(comment_data["author_id"]))
+    author = get_user_or_none(comment_data["author_id"])
+    if not author:
+        return
     mongo_thread_id = str(comment_data["comment_thread_id"])
     mongo_thread = MongoContent.objects.get(mongo_id=mongo_thread_id)
     thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
@@ -159,7 +171,9 @@ def create_votes(content: CommentThread | Comment, votes_data: dict[str, Any]) -
     """Create or update votes for a content."""
     for vote_type in ["up", "down"]:
         for user_id in votes_data.get(vote_type, []):
-            user = User.objects.get(pk=int(user_id))
+            user = get_user_or_none(user_id)
+            if not user:
+                continue
             UserVote.objects.update_or_create(
                 user=user,
                 content_type=content.content_type,
@@ -175,11 +189,14 @@ def create_or_update_edit_history(content: dict[str, Any]) -> None:
     mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
     content_object = content_type.objects.get(pk=mongo_content.content_object_id)
     for edit in edit_history:
+        editor = get_user_or_none(edit["author_id"])
+        if not editor:
+            continue
         EditHistory.objects.get_or_create(
             content_object_id=content_object.pk,
             content_type=content_object.content_type,
             created_at=edit["created_at"],
-            editor=User.objects.get(pk=int(edit["author_id"])),
+            editor=editor,
             defaults={
                 "original_body": edit["original_body"],
                 "reason_code": edit["reason_code"],
@@ -193,7 +210,9 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
     mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
     content_object = content_type.objects.get(pk=mongo_content.content_object_id)
     for user_id in content["abuse_flaggers"]:
-        user = User.objects.get(pk=int(user_id))
+        user = get_user_or_none(user_id)
+        if not user:
+            continue
         AbuseFlagger.objects.update_or_create(
             user=user,
             content_type=content_object.content_type,
@@ -203,7 +222,9 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
             },
         )
     for user_id in content["historical_abuse_flaggers"]:
-        user = User.objects.get(pk=int(user_id))
+        user = get_user_or_none(user_id)
+        if not user:
+            continue
         HistoricalAbuseFlagger.objects.update_or_create(
             user=user,
             content_type=content_object.content_type,
@@ -218,7 +239,9 @@ def migrate_subscriptions(db: Database[dict[str, Any]], content_id: str) -> None
     """Migrate subscriptions from mongo to mysql."""
     subscriptions = db.subscriptions.find({"source_id": str(content_id)})
     for sub in subscriptions:
-        user = User.objects.get(id=int(sub["subscriber_id"]))
+        user = get_user_or_none(sub["subscriber_id"])
+        if not user:
+            continue
         content_type = (
             CommentThread if sub["source_type"] == "CommentThread" else Comment
         )
@@ -240,7 +263,7 @@ def migrate_read_states(db: Database[dict[str, Any]], course_id: str) -> None:
     """Migrate read states from mongo to mysql."""
     users = db.users.find({"course_stats.course_id": course_id})
     for user_data in users:
-        user = User.objects.filter(id=int(user_data["_id"])).first()
+        user = get_user_or_none(user_data["_id"])
         if not user:
             continue
 

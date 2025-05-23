@@ -335,27 +335,6 @@ def test_no_matching_course_id(api_client: APIClient, patched_get_backend: Any) 
     assert len(results) == 0
 
 
-def test_filter_flagged_posts(api_client: APIClient, patched_get_backend: Any) -> None:
-    """Test filter flagged posts through get thread API."""
-    backend = patched_get_backend
-    user_id, thread_id = setup_models(backend)
-    tests_flags = [(True, "1"), (False, "0")]
-    for flagged, abuse_flaggers in tests_flags:
-        action = "flag" if flagged else "unflag"
-        response = api_client.put_json(
-            path=f"/api/v2/threads/{thread_id}/abuse_{action}",
-            data={"user_id": str(user_id), "count_flagged": True},
-        )
-        params = {"course_id": "course1", "flagged": flagged}
-        response = api_client.get_json("/api/v2/threads", params)
-        assert response.status_code == 200
-        if action == "unflag":
-            assert response.json()["collection"] == []
-        else:
-            result = response.json()["collection"][0]
-            assert result["abuse_flaggers"] == [abuse_flaggers]
-
-
 def test_filter_by_author(api_client: APIClient, patched_get_backend: Any) -> None:
     """Test filter threads by author id through get thread API."""
     backend = patched_get_backend

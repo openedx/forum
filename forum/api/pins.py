@@ -3,9 +3,9 @@ Native Python Pins APIs.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError
 
@@ -16,7 +16,6 @@ def pin_unpin_thread(
     user_id: str,
     thread_id: str,
     action: str,
-    course_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Helper method to Pin or Unpin a thread.
@@ -27,7 +26,6 @@ def pin_unpin_thread(
     Response:
         A response with the updated thread data.
     """
-    backend = get_backend(course_id)()
     try:
         thread_data: dict[str, Any] = backend.handle_pin_unpin_thread_request(
             user_id, thread_id, action, ThreadSerializer
@@ -39,9 +37,7 @@ def pin_unpin_thread(
     return thread_data
 
 
-def pin_thread(
-    user_id: str, thread_id: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def pin_thread(user_id: str, thread_id: str) -> dict[str, Any]:
     """
     Pin a thread.
     Parameters:
@@ -51,12 +47,10 @@ def pin_thread(
         A response with the updated thread data.
     """
 
-    return pin_unpin_thread(user_id, thread_id, "pin", course_id)
+    return pin_unpin_thread(user_id, thread_id, "pin")
 
 
-def unpin_thread(
-    user_id: str, thread_id: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def unpin_thread(user_id: str, thread_id: str) -> dict[str, Any]:
     """
     Unpin a thread.
     Parameters:
@@ -65,4 +59,4 @@ def unpin_thread(
     Response:
         A response with the updated thread data.
     """
-    return pin_unpin_thread(user_id, thread_id, "unpin", course_id)
+    return pin_unpin_thread(user_id, thread_id, "unpin")

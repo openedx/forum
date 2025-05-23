@@ -249,3 +249,87 @@ def test_comment_flag_api_with_all_param(
     assert thread is not None
     assert thread["abuse_flaggers"] == []
     assert thread["historical_abuse_flaggers"] == [flag_user]
+
+
+def test_flag_unflag_thread_twice(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """
+    Test flagging a thread, unflagging it, flagging it again, and unflagging it again.
+    """
+    backend = patched_get_backend
+    flag_user = backend.generate_id()
+    author_user = backend.generate_id()
+    backend.find_or_create_user(flag_user, flag_user)
+    backend.find_or_create_user(author_user, author_user)
+    comment_thread_id = backend.create_thread(
+        {
+            "title": "Thread 1",
+            "body": "Body 1",
+            "course_id": "course1",
+            "commentable_id": "3",
+            "author_id": author_user,
+            "author_username": author_user,
+            "abuse_flaggers": [],
+            "historical_abuse_flaggers": [],
+        }
+    )
+
+    # Flag the thread
+    response = api_client.put_json(
+        f"/api/v2/threads/{comment_thread_id}/abuse_flag",
+        data={"user_id": flag_user},
+    )
+    assert response.status_code == 200
+    flagged_thread = response.json()
+    assert flagged_thread is not None
+    thread = backend.get_thread(flagged_thread["id"])
+    assert thread is not None
+    assert thread["abuse_flaggers"] == [flag_user]
+    # After first flag, historical_abuse_flaggers should be unchanged or contain flag_user
+    assert (
+        flag_user in thread["historical_abuse_flaggers"]
+        or thread["historical_abuse_flaggers"] == []
+    )
+
+    # Unflag the thread
+    response = api_client.put_json(
+        path=f"/api/v2/threads/{comment_thread_id}/abuse_unflag",
+        data={"user_id": flag_user, "all": True},
+    )
+    assert response.status_code == 200
+    unflagged_thread = response.json()
+    assert unflagged_thread is not None
+    thread = backend.get_thread(unflagged_thread["id"])
+    assert thread is not None
+    assert thread["abuse_flaggers"] == []
+    # After unflag, historical_abuse_flaggers should contain flag_user
+    assert flag_user in thread["historical_abuse_flaggers"]
+
+    # Flag the thread again
+    response = api_client.put_json(
+        f"/api/v2/threads/{comment_thread_id}/abuse_flag",
+        data={"user_id": flag_user},
+    )
+    assert response.status_code == 200
+    flagged_thread = response.json()
+    assert flagged_thread is not None
+    thread = backend.get_thread(flagged_thread["id"])
+    assert thread is not None
+    assert thread["abuse_flaggers"] == [flag_user]
+    # historical_abuse_flaggers should still contain flag_user (no duplicates)
+    assert thread["historical_abuse_flaggers"].count(flag_user) == 1
+
+    # Unflag the thread again
+    response = api_client.put_json(
+        path=f"/api/v2/threads/{comment_thread_id}/abuse_unflag",
+        data={"user_id": flag_user, "all": True},
+    )
+    assert response.status_code == 200
+    unflagged_thread = response.json()
+    assert unflagged_thread is not None
+    thread = backend.get_thread(unflagged_thread["id"])
+    assert thread is not None
+    assert thread["abuse_flaggers"] == []
+    # historical_abuse_flaggers should still contain flag_user (no duplicates)
+    assert thread["historical_abuse_flaggers"].count(flag_user) == 1

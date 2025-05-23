@@ -8,13 +8,13 @@ from test_utils.client import APIClient
 pytestmark = pytest.mark.django_db
 
 
-def test_comment_thread_api(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_comment_thread_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test the comment thread flag API.
 
     This test checks that a user can flag a comment thread for abuse and then unflag it.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     flag_user = backend.generate_id()
     author_user = backend.generate_id()
     backend.find_or_create_user(flag_user, flag_user)
@@ -61,13 +61,13 @@ def test_comment_thread_api(api_client: APIClient, patched_get_backend: Any) -> 
     assert comment["abuse_flaggers"] == []
 
 
-def test_comment_flag_api(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_comment_flag_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test the comment flag API.
 
     This test checks that a user can flag a comment for abuse and then unflag it.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     flag_user = backend.generate_id()
     author_user = backend.generate_id()
     backend.find_or_create_user(flag_user, flag_user)
@@ -126,14 +126,14 @@ def test_comment_flag_api(api_client: APIClient, patched_get_backend: Any) -> No
 
 
 def test_comment_flag_api_invalid_data(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the comment flag API with invalid data.
 
     This test checks that the API returns a 400 error when the user or comment does not exist.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user = backend.generate_id()
     backend.find_or_create_user(user)
     comment_id = backend.generate_id()
@@ -147,14 +147,14 @@ def test_comment_flag_api_invalid_data(
 
 
 def test_comment_flag_api_with_all_param(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the comment flag API with the `all` parameter.
 
     This test checks that a user can flag a comment for abuse and then unflag it using all.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     flag_user = backend.generate_id()
     flag_user_2 = backend.generate_id()
     author_user = backend.generate_id()

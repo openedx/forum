@@ -4,7 +4,7 @@ This module contains the functions to update the flag status of a comment.
 
 from typing import Any, Optional
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.serializers.comment import CommentSerializer
 from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError
@@ -15,7 +15,6 @@ def update_comment_flag(
     action: str,
     user_id: Optional[str] = None,
     update_all: Optional[bool] = False,
-    course_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Update the flag status of a comment.
@@ -26,7 +25,6 @@ def update_comment_flag(
         action (str): The action to perform ("flag" or "unflag").
         update_all (bool, optional): Whether to update all flags. Defaults to False.
     """
-    backend = get_backend(course_id)()
     if not user_id:
         raise ForumV2RequestError("user_id not provided in params")
     user = backend.get_user(user_id)
@@ -72,7 +70,6 @@ def update_thread_flag(
     action: str,
     user_id: Optional[str] = None,
     update_all: Optional[bool] = False,
-    course_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Update the flag status of a thread.
@@ -83,7 +80,6 @@ def update_thread_flag(
         action (str): The action to perform ("flag" or "unflag").
         update_all (bool, optional): Whether to update all flags. Defaults to False.
     """
-    backend = get_backend(course_id)()
     if not user_id:
         raise ForumV2RequestError("user_id not provided in params")
     user = backend.get_user(user_id)

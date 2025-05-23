@@ -509,57 +509,6 @@ def test_handles_deleting_replies(
     assert new_stats["replies"] == stats["replies"] - 1
 
 
-def test_handles_removing_flags(
-    api_client: APIClient,
-    original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
-) -> None:
-    """Test handling removing abuse flags."""
-    backend = patched_get_backend()
-    stats, username, course_id = original_stats
-
-    user = backend.get_user_by_username(username)
-    assert user is not None
-
-    # Find a comment with existing abuse flaggers
-    comment = backend.find_comment(
-        author_id=user["_id"], course_id=course_id, with_abuse_flaggers=True
-    )
-    assert comment is not None
-
-    # Set abuse flaggers to two users
-    backend.update_comment(str(comment["_id"]), abuse_flaggers=["1", "2"])
-
-    # Remove the flag for the first user
-    response = api_client.put_json(
-        f"/api/v2/comments/{str(comment['_id'])}/abuse_unflag",
-        data={"user_id": "1"},
-    )
-    assert response.status_code == 200
-
-    # Fetch new stats, the active flags should stay the same (still one flagger left)
-    new_stats = get_new_stats(api_client, course_id, username)
-
-    assert new_stats is not None
-    assert new_stats["active_flags"] == stats["active_flags"]
-
-    # Remove the flag for the second user
-    response = api_client.put_json(
-        f"/api/v2/comments/{str(comment['_id'])}/abuse_unflag",
-        data={"user_id": "2"},
-    )
-    assert response.status_code == 200
-
-    # Fetch stats again, now the active flags should reduce by one
-    response = api_client.get_json(f"/api/v2/users/{course_id}/stats", params={})
-    assert response.status_code == 200
-    res_data = response.json()["user_stats"]
-    new_stats = next(stats for stats in res_data if stats["username"] == username)
-
-    assert new_stats is not None
-    assert new_stats["active_flags"] == stats["active_flags"] - 1
-
-
 def test_build_course_stats_with_anonymous_posts(
     api_client: APIClient, patched_get_backend: Any
 ) -> None:

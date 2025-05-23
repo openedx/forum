@@ -229,3 +229,26 @@ def test_read_states_deletion_checks_thread_id_existence(
     response = api_client.delete_json(f"/api/v2/threads/{thread_id}")
     assert response.status_code == 200
     assert is_thread_id_exists_in_user_read_state(user_id, other_thread_id) is True
+
+
+def test_filter_flagged_posts(
+    api_client: APIClient, patched_mysql_backend: MySQLBackend
+) -> None:
+    """Test filter flagged posts through get thread API."""
+    backend = patched_mysql_backend
+    user_id, thread_id = setup_models(backend)
+    tests_flags = [(True, "1"), (False, "0")]
+    for flagged, abuse_flaggers in tests_flags:
+        action = "flag" if flagged else "unflag"
+        response = api_client.put_json(
+            path=f"/api/v2/threads/{thread_id}/abuse_{action}",
+            data={"user_id": str(user_id), "count_flagged": True},
+        )
+        params = {"course_id": "course1", "flagged": flagged}
+        response = api_client.get_json("/api/v2/threads", params)
+        assert response.status_code == 200
+        if action == "unflag":
+            assert response.json()["collection"] == []
+        else:
+            result = response.json()["collection"][0]
+            assert result["abuse_flaggers"] == [abuse_flaggers]

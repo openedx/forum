@@ -628,10 +628,12 @@ def test_mark_thread_as_read(api_client: APIClient, patched_get_backend: Any) ->
     )  # Verify the read date is on or after the thread's updated_at
 
 
-def test_retire_user_inactive(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_retire_user_inactive(
+    api_client: APIClient, patched_mysql_backend: Any
+) -> None:
     """Test retiring an inactive user."""
 
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = backend.find_or_create_user(user_id="1", username="user1")
     user = backend.get_user(user_id) or {}
 

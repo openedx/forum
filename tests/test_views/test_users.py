@@ -438,10 +438,10 @@ def test_retire_user(api_client: APIClient, patched_get_backend: Any) -> None:
 
 
 def test_retire_user_with_subscribed_threads(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """Test retire user with subscribed threads."""
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = backend.generate_id()
     username = "test-user"
     backend.find_or_create_user(

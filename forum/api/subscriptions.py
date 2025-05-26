@@ -2,13 +2,13 @@
 API for subscriptions.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from django.http import QueryDict
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.pagination import ForumPagination
 from forum.serializers.subscriptions import SubscriptionSerializer
 from forum.serializers.thread import ThreadSerializer
@@ -16,12 +16,12 @@ from forum.utils import ForumV2RequestError
 
 
 def validate_user_and_thread(
-    user_id: str, source_id: str, course_id: Optional[str] = None
+    user_id: str,
+    source_id: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Validate if user and thread exist.
     """
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     thread = backend.get_thread(source_id)
     if not (user and thread):
@@ -30,13 +30,13 @@ def validate_user_and_thread(
 
 
 def create_subscription(
-    user_id: str, source_id: str, course_id: Optional[str] = None
+    user_id: str,
+    source_id: str,
 ) -> dict[str, Any]:
     """
     Create a subscription for a user.
     """
-    backend = get_backend(course_id)()
-    _, _ = validate_user_and_thread(user_id, source_id, course_id=course_id)
+    _, _ = validate_user_and_thread(user_id, source_id)
     subscription = backend.subscribe_user(
         user_id, source_id, source_type="CommentThread"
     )
@@ -45,13 +45,13 @@ def create_subscription(
 
 
 def delete_subscription(
-    user_id: str, source_id: str, course_id: Optional[str] = None
+    user_id: str,
+    source_id: str,
 ) -> dict[str, Any]:
     """
     Delete a subscription for a user.
     """
-    backend = get_backend(course_id)()
-    _, _ = validate_user_and_thread(user_id, source_id, course_id=course_id)
+    _, _ = validate_user_and_thread(user_id, source_id)
 
     subscription = backend.get_subscription(
         user_id, source_id, source_type="CommentThread"
@@ -70,7 +70,6 @@ def get_user_subscriptions(
     """
     Get a user's subscriptions.
     """
-    backend = get_backend(course_id)()
     backend.validate_params(query_params, user_id)
     thread_ids = backend.find_subscribed_threads(user_id, course_id)
     threads = backend.get_threads(query_params, user_id, ThreadSerializer, thread_ids)
@@ -78,7 +77,7 @@ def get_user_subscriptions(
 
 
 def get_thread_subscriptions(
-    thread_id: str, page: int = 1, per_page: int = 20, course_id: Optional[str] = None
+    thread_id: str, page: int = 1, per_page: int = 20
 ) -> dict[str, Any]:
     """
     Retrieve subscriptions to a specific thread.
@@ -91,7 +90,6 @@ def get_thread_subscriptions(
     Returns:
         dict: A dictionary containing the paginated subscription data.
     """
-    backend = get_backend(course_id)()
     query = {"source_id": thread_id, "source_type": "CommentThread"}
     subscriptions_list = list(backend.get_subscriptions(query))
 

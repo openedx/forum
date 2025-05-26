@@ -2,9 +2,9 @@
 API for votes.
 """
 
-from typing import Any, Optional
+from typing import Any
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.serializers.comment import CommentSerializer
 from forum.serializers.thread import ThreadSerializer
 from forum.serializers.votes import VotesInputSerializer
@@ -12,9 +12,7 @@ from forum.utils import ForumV2RequestError
 
 
 def _get_thread_and_user(
-    thread_id: str,
-    user_id: str,
-    course_id: Optional[str] = None,
+    thread_id: str, user_id: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Fetches the thread and user based on provided IDs.
@@ -29,7 +27,6 @@ def _get_thread_and_user(
     Raises:
         ValueError: If the thread or user is not found.
     """
-    backend = get_backend(course_id)()
     thread = backend.get_thread(thread_id)
     if not thread:
         raise ValueError("Thread not found")
@@ -42,7 +39,7 @@ def _get_thread_and_user(
 
 
 def _prepare_thread_response(
-    thread: dict[str, Any], user: dict[str, Any], backend: Any
+    thread: dict[str, Any], user: dict[str, Any]
 ) -> dict[str, Any]:
     """
     Prepares the serialized response data after voting.
@@ -70,9 +67,7 @@ def _prepare_thread_response(
     return serializer.data
 
 
-def update_thread_votes(
-    thread_id: str, user_id: str, value: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def update_thread_votes(thread_id: str, user_id: str, value: str) -> dict[str, Any]:
     """
     Updates the votes for a thread.
 
@@ -81,7 +76,6 @@ def update_thread_votes(
         user_id (str): The ID of the user.
         value (str): The vote value ("up" or "down").
     """
-    backend = get_backend(course_id)()
     data = {"user_id": user_id, "value": value}
     vote_serializer = VotesInputSerializer(data=data)
 
@@ -89,7 +83,7 @@ def update_thread_votes(
         raise ForumV2RequestError(vote_serializer.errors)
 
     try:
-        thread, user = _get_thread_and_user(thread_id, user_id, course_id=course_id)
+        thread, user = _get_thread_and_user(thread_id, user_id)
     except ValueError as error:
         raise ForumV2RequestError(str(error)) from error
 
@@ -105,12 +99,10 @@ def update_thread_votes(
     if is_updated:
         thread = backend.get_thread(thread_id) or {}
 
-    return _prepare_thread_response(thread, user, backend)
+    return _prepare_thread_response(thread, user)
 
 
-def delete_thread_vote(
-    thread_id: str, user_id: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def delete_thread_vote(thread_id: str, user_id: str) -> dict[str, Any]:
     """
     Deletes the vote for a thread.
 
@@ -118,9 +110,8 @@ def delete_thread_vote(
         thread_id (str): The ID of the thread.
         user_id (str): The ID of the user.
     """
-    backend = get_backend(course_id)()
     try:
-        _, user = _get_thread_and_user(thread_id, user_id, course_id=course_id)
+        _, user = _get_thread_and_user(thread_id, user_id)
     except ValueError as error:
         raise ForumV2RequestError(str(error)) from error
 
@@ -131,11 +122,11 @@ def delete_thread_vote(
     if not deleted_thread:
         raise ForumV2RequestError("Thread not found")
 
-    return _prepare_thread_response(deleted_thread, user, backend)
+    return _prepare_thread_response(deleted_thread, user)
 
 
 def _get_comment_and_user(
-    comment_id: str, user_id: str, backend: Any
+    comment_id: str, user_id: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Fetches the comment and user based on provided IDs.
@@ -162,7 +153,7 @@ def _get_comment_and_user(
 
 
 def _prepare_comment_response(
-    comment: dict[str, Any], user: dict[str, Any], backend: Any
+    comment: dict[str, Any], user: dict[str, Any]
 ) -> dict[str, Any]:
     """
     Prepares the serialized response data after voting.
@@ -191,9 +182,7 @@ def _prepare_comment_response(
     return serializer.data
 
 
-def update_comment_votes(
-    comment_id: str, user_id: str, value: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def update_comment_votes(comment_id: str, user_id: str, value: str) -> dict[str, Any]:
     """
     Updates the votes for a comment.
 
@@ -202,7 +191,6 @@ def update_comment_votes(
         user_id (str): The ID of the user.
         value (str): The vote value ("up" or "down").
     """
-    backend = get_backend(course_id)()
     data = {"user_id": user_id, "value": value}
     vote_serializer = VotesInputSerializer(data=data)
 
@@ -210,7 +198,7 @@ def update_comment_votes(
         raise ForumV2RequestError(vote_serializer.errors)
 
     try:
-        _, user = _get_comment_and_user(comment_id, user_id, backend)
+        _, user = _get_comment_and_user(comment_id, user_id)
     except ValueError as error:
         raise ForumV2RequestError(str(error)) from error
 
@@ -228,12 +216,10 @@ def update_comment_votes(
     if not updated_comment:
         raise ForumV2RequestError("Comment not found")
 
-    return _prepare_comment_response(updated_comment, user, backend)
+    return _prepare_comment_response(updated_comment, user)
 
 
-def delete_comment_vote(
-    comment_id: str, user_id: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def delete_comment_vote(comment_id: str, user_id: str) -> dict[str, Any]:
     """
     Deletes the vote for a comment.
 
@@ -241,9 +227,8 @@ def delete_comment_vote(
         comment_id (str): The ID of the comment.
         user_id (str): The ID of the user.
     """
-    backend = get_backend(course_id)()
     try:
-        _, user = _get_comment_and_user(comment_id, user_id, backend)
+        _, user = _get_comment_and_user(comment_id, user_id)
     except ValueError as error:
         raise ForumV2RequestError(str(error)) from error
 
@@ -254,4 +239,4 @@ def delete_comment_vote(
     if not deleted_comment:
         raise ForumV2RequestError("Comment not found")
 
-    return _prepare_comment_response(deleted_comment, user, backend)
+    return _prepare_comment_response(deleted_comment, user)

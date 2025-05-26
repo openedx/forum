@@ -10,7 +10,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(name="user")
-def get_user(patched_get_backend: Any) -> dict[str, Any]:
+def get_user(patched_mysql_backend: Any) -> dict[str, Any]:
     """
     Fixture to create and return a test user.
 
@@ -19,14 +19,14 @@ def get_user(patched_get_backend: Any) -> dict[str, Any]:
     Returns:
         dict[str, Any]: The created user, represented as a dictionary.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = "1"
     backend.find_or_create_user(user_id, username="testuser")
     return backend.get_user(user_id) or {}
 
 
 @pytest.fixture(name="thread")
-def get_thread(user: dict[str, Any], patched_get_backend: Any) -> dict[str, Any]:
+def get_thread(user: dict[str, Any], patched_mysql_backend: Any) -> dict[str, Any]:
     """
     Fixture to create and return a test thread.
 
@@ -39,7 +39,7 @@ def get_thread(user: dict[str, Any], patched_get_backend: Any) -> dict[str, Any]
     Returns:
         dict[str, Any]: The created thread, represented as a dictionary.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
 
     # create dummy users
     for user_id in range(2, 6):
@@ -62,7 +62,7 @@ def get_thread(user: dict[str, Any], patched_get_backend: Any) -> dict[str, Any]
 
 @pytest.fixture(name="comment")
 def get_comment(
-    user: dict[str, Any], thread: dict[str, Any], patched_get_backend: Any
+    user: dict[str, Any], thread: dict[str, Any], patched_mysql_backend: Any
 ) -> dict[str, Any]:
     """
     Fixture to create and return a test comment.
@@ -77,7 +77,7 @@ def get_comment(
     Returns:
         dict[str, Any]: The created comment, represented as a dictionary.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     comment_id = backend.create_comment(
         {
             "body": "This is a test comment.",
@@ -96,7 +96,7 @@ def test_upvote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting a thread.
@@ -109,7 +109,7 @@ def test_upvote_thread_api(
         user (dict[str, Any]): The test user performing the upvote.
         thread (dict[str, Any]): The thread to be upvoted.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     thread_id = thread["_id"]
 
@@ -137,7 +137,7 @@ def test_vote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting, downvote, and again upvotes the same thread.
@@ -150,7 +150,7 @@ def test_vote_thread_api(
         user (dict[str, Any]): The test user performing the upvote.
         thread (dict[str, Any]): The thread to be upvoted.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     thread_id = thread["_id"]
 
@@ -194,7 +194,7 @@ def test_downvote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for downvoting a thread.
@@ -207,7 +207,7 @@ def test_downvote_thread_api(
         user (dict[str, Any]): The test user performing the downvote.
         thread (dict[str, Any]): The thread to be downvoted.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     thread_id = thread["_id"]
 
@@ -231,7 +231,7 @@ def test_remove_vote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for removing a vote from a thread.
@@ -244,7 +244,7 @@ def test_remove_vote_thread_api(
         user (dict[str, Any]): The test user who performed the upvote.
         thread (dict[str, Any]): The thread from which the vote will be removed.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     thread_id = thread["_id"]
 
@@ -295,7 +295,7 @@ def test_upvote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting a comment.
@@ -308,7 +308,7 @@ def test_upvote_comment_api(
         user (dict[str, Any]): The test user performing the upvote.
         comment (dict[str, Any]): The comment to be upvoted.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     comment_id = comment["_id"]
 
@@ -332,7 +332,7 @@ def test_downvote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for downvoting a comment.
@@ -345,7 +345,7 @@ def test_downvote_comment_api(
         user (dict[str, Any]): The test user performing the downvote.
         comment (dict[str, Any]): The comment to be downvoted.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     comment_id = comment["_id"]
 
@@ -369,7 +369,7 @@ def test_remove_vote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for removing a vote from a comment.
@@ -382,7 +382,7 @@ def test_remove_vote_comment_api(
         user (dict[str, Any]): The test user who performed the upvote.
         comment (dict[str, Any]): The comment from which the vote will be removed.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id = user["_id"]
     comment_id = comment["_id"]
 

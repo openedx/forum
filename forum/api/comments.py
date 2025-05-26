@@ -8,7 +8,7 @@ from typing import Any, Optional
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.serializers.comment import CommentSerializer
 from forum.utils import ForumV2RequestError
 
@@ -17,7 +17,6 @@ log = logging.getLogger(__name__)
 
 def prepare_comment_api_response(
     comment: dict[str, Any],
-    backend: Any,
     exclude_fields: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     """
@@ -53,9 +52,7 @@ def prepare_comment_api_response(
     return serializer.data
 
 
-def get_parent_comment(
-    comment_id: str, course_id: Optional[str] = None
-) -> dict[str, Any]:
+def get_parent_comment(comment_id: str) -> dict[str, Any]:
     """
     Get a parent comment.
 
@@ -66,7 +63,6 @@ def get_parent_comment(
     Response:
         The details of the comment for the given comment_id.
     """
-    backend = get_backend(course_id)()
     try:
         comment = backend.validate_object("Comment", comment_id)
     except ObjectDoesNotExist as exc:
@@ -76,7 +72,6 @@ def get_parent_comment(
         ) from exc
     return prepare_comment_api_response(
         comment,
-        backend,
         exclude_fields=["sk"],
     )
 
@@ -102,7 +97,6 @@ def create_child_comment(
     Response:
         The details of the comment that is created.
     """
-    backend = get_backend(course_id)()
     try:
         parent_comment = backend.validate_object("Comment", parent_comment_id)
     except ObjectDoesNotExist as exc:
@@ -135,7 +129,6 @@ def create_child_comment(
     try:
         comment_data = prepare_comment_api_response(
             comment,
-            backend,
             exclude_fields=["endorsement", "sk"],
         )
         return comment_data
@@ -146,7 +139,6 @@ def create_child_comment(
 def update_comment(
     comment_id: str,
     body: Optional[str] = None,
-    course_id: Optional[str] = None,
     user_id: Optional[str] = None,
     anonymous: Optional[bool] = None,
     anonymous_to_peers: Optional[bool] = None,
@@ -162,7 +154,6 @@ def update_comment(
     Parameters:
         comment_id: The ID of the comment to be edited.
         body (Optional[str]): The content of the comment.
-        course_id (Optional[str]): The Id of the respective course.
         user_id (Optional[str]): The requesting user id.
         anonymous (Optional[bool]): anonymous flag(True or False).
         anonymous_to_peers (Optional[bool]): anonymous to peers flag(True or False).
@@ -174,7 +165,6 @@ def update_comment(
     Response:
         The details of the comment that is updated.
     """
-    backend = get_backend(course_id)()
     try:
         backend.validate_object("Comment", comment_id)
     except ObjectDoesNotExist as exc:
@@ -201,7 +191,6 @@ def update_comment(
     try:
         return prepare_comment_api_response(
             updated_comment,
-            backend,
             exclude_fields=(
                 ["endorsement", "sk"] if updated_comment.get("parent_id") else ["sk"]
             ),
@@ -210,7 +199,7 @@ def update_comment(
         raise error
 
 
-def delete_comment(comment_id: str, course_id: Optional[str] = None) -> dict[str, Any]:
+def delete_comment(comment_id: str) -> dict[str, Any]:
     """
     Delete a comment.
 
@@ -221,7 +210,6 @@ def delete_comment(comment_id: str, course_id: Optional[str] = None) -> dict[str
     Response:
         The details of the comment that is deleted.
     """
-    backend = get_backend(course_id)()
     try:
         comment = backend.validate_object("Comment", comment_id)
     except ObjectDoesNotExist as exc:
@@ -231,7 +219,6 @@ def delete_comment(comment_id: str, course_id: Optional[str] = None) -> dict[str
         ) from exc
     data = prepare_comment_api_response(
         comment,
-        backend,
         exclude_fields=["endorsement", "sk"],
     )
     backend.delete_comment(comment_id)
@@ -266,7 +253,6 @@ def create_parent_comment(
     Response:
         The details of the comment that is created.
     """
-    backend = get_backend(course_id)()
     try:
         backend.validate_object("CommentThread", thread_id)
     except ObjectDoesNotExist as exc:
@@ -296,7 +282,6 @@ def create_parent_comment(
     try:
         return prepare_comment_api_response(
             comment,
-            backend,
             exclude_fields=["endorsement", "sk"],
         )
     except ValidationError as error:
@@ -306,14 +291,5 @@ def create_parent_comment(
 def get_course_id_by_comment(comment_id: str) -> str | None:
     """
     Return course_id for the matching comment.
-    It searches for comment_id both in mongodb and mysql.
     """
-    #  pylint: disable=C0415
-    from forum.backends.mongodb.api import MongoBackend
-    from forum.backends.mysql.api import MySQLBackend
-
-    return (
-        MongoBackend.get_course_id_by_comment_id(comment_id)
-        or MySQLBackend.get_course_id_by_comment_id(comment_id)
-        or None
-    )
+    return backend.get_course_id_by_comment_id(comment_id)

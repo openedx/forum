@@ -2,7 +2,7 @@
 Native Python Commenttables APIs.
 """
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 
 
 def get_commentables_stats(course_id: str) -> dict[str, int]:
@@ -18,5 +18,4 @@ def get_commentables_stats(course_id: str) -> dict[str, int]:
         e.g.
         reponse = {'course': {'discussion': 1, 'question': 1}}
     """
-    backend = get_backend(course_id)()
     return backend.get_commentables_counts_based_on_type(course_id)

@@ -13,12 +13,12 @@ pytestmark = pytest.mark.django_db
 
 
 def test_get_commentables_counts_api(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test retrieving counts of discussion and question threads for multiple commentables within a course.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     username = "test_user"
     user_id = backend.find_or_create_user("1", username=username)
     course_id = "abcd"

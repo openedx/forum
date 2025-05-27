@@ -9,7 +9,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
 from forum.api.users import mark_thread_as_read
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError, get_int_value_from_collection, str_to_bool
 
@@ -63,7 +63,6 @@ def get_thread_data(thread: dict[str, Any]) -> dict[str, Any]:
 
 def prepare_thread_api_response(
     thread: dict[str, Any],
-    backend: Any,
     include_context: Optional[bool] = False,
     data_or_params: Optional[dict[str, Any]] = None,
     include_data_from_params: Optional[bool] = False,
@@ -135,7 +134,6 @@ def get_thread(
     Response:
         The details of the thread for the given thread_id.
     """
-    backend = get_backend(course_id)()
     try:
         thread = backend.validate_object("CommentThread", thread_id)
     except ObjectDoesNotExist as exc:
@@ -147,7 +145,6 @@ def get_thread(
     try:
         return prepare_thread_api_response(
             thread,
-            backend,
             True,
             params,
             True,
@@ -158,7 +155,7 @@ def get_thread(
         raise ForumV2RequestError("Failed to prepare thread API response") from error
 
 
-def delete_thread(thread_id: str, course_id: Optional[str] = None) -> dict[str, Any]:
+def delete_thread(thread_id: str) -> dict[str, Any]:
     """
     Delete the thread for the given thread_id.
 
@@ -167,7 +164,6 @@ def delete_thread(thread_id: str, course_id: Optional[str] = None) -> dict[str, 
     Response:
         The details of the thread that is deleted.
     """
-    backend = get_backend(course_id)()
     try:
         thread = backend.validate_object("CommentThread", thread_id)
     except ObjectDoesNotExist as exc:
@@ -180,7 +176,7 @@ def delete_thread(thread_id: str, course_id: Optional[str] = None) -> dict[str, 
     thread = backend.validate_object("CommentThread", thread_id)
 
     try:
-        serialized_data = prepare_thread_api_response(thread, backend)
+        serialized_data = prepare_thread_api_response(thread)
     except ValidationError as error:
         log.error(f"Validation error in get_thread: {error}")
         raise ForumV2RequestError("Failed to prepare thread API response") from error
@@ -199,7 +195,6 @@ def update_thread(
     thread_id: str,
     title: Optional[str] = None,
     body: Optional[str] = None,
-    course_id: Optional[str] = None,
     anonymous: Optional[bool] = None,
     anonymous_to_peers: Optional[bool] = None,
     closed: Optional[bool] = None,
@@ -222,7 +217,6 @@ def update_thread(
     Response:
         The details of the thread that is updated.
     """
-    backend = get_backend(course_id)()
     try:
         thread = backend.validate_object("CommentThread", thread_id)
     except ObjectDoesNotExist as exc:
@@ -266,7 +260,6 @@ def update_thread(
     try:
         return prepare_thread_api_response(
             thread,
-            backend,
             True,
             data,
         )
@@ -303,7 +296,6 @@ def create_thread(
     Response:
         The details of the thread that is created.
     """
-    backend = get_backend(course_id)()
     data = {
         "title": title,
         "body": body,
@@ -331,7 +323,6 @@ def create_thread(
     try:
         return prepare_thread_api_response(
             thread,
-            backend,
             True,
             data,
         )
@@ -362,7 +353,6 @@ def get_user_threads(
     """
     Get the threads for the given thread_ids.
     """
-    backend = get_backend(course_id)()
     params = {
         "course_id": course_id,
         "author_id": author_id,
@@ -395,14 +385,5 @@ def get_user_threads(
 def get_course_id_by_thread(thread_id: str) -> str | None:
     """
     Return course_id for the matching thread.
-    It searches for thread_id both in mongodb and mysql.
     """
-    #  pylint: disable=C0415
-    from forum.backends.mongodb.api import MongoBackend
-    from forum.backends.mysql.api import MySQLBackend
-
-    return (
-        MongoBackend.get_course_id_by_thread_id(thread_id)
-        or MySQLBackend.get_course_id_by_thread_id(thread_id)
-        or None
-    )
+    return backend.get_course_id_by_thread_id(thread_id)

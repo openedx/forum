@@ -89,14 +89,14 @@ def refresh_elastic_search_indices() -> None:
     get_index_search_backend().refresh_indices()
 
 
-def test_invalid_request(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_invalid_request(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test that invalid requests to the search API return a 400 status.
 
     This test checks that invalid parameters in the search query string
     result in a 400 Bad Request response.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = "1"
     course_id = "course-v1:Arbisoft+SE002+2024_S2"
     backend.find_or_create_user(user_id, username="user1")
@@ -134,7 +134,7 @@ def test_invalid_request(api_client: APIClient, patched_get_backend: Any) -> Non
 
 
 def test_search_returns_empty_for_deleted_thread(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test that searching for a deleted thread returns no results.
@@ -143,7 +143,7 @@ def test_search_returns_empty_for_deleted_thread(
     in search results.
     """
 
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
 
     user_id = "1"
     user_name = "test_user"
@@ -172,7 +172,7 @@ def test_search_returns_empty_for_deleted_thread(
 
 
 def test_search_returns_only_updated_thread(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test that searching for a thread returns only the updated version.
@@ -180,7 +180,7 @@ def test_search_returns_only_updated_thread(
     This test checks that after a thread is updated, the search results reflect
     the updated title and not the original one.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = "1"
     user_name = "test_user"
     backend.find_or_create_user(user_id, username=user_name)
@@ -214,7 +214,7 @@ def test_search_returns_only_updated_thread(
 
 
 def test_search_returns_empty_for_deleted_comment(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test that searching for a deleted comment returns no results.
@@ -223,7 +223,7 @@ def test_search_returns_empty_for_deleted_comment(
     in search results.
     """
 
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = "1"
     user_name = "test_user"
     backend.find_or_create_user(user_id, username=user_name)
@@ -259,7 +259,7 @@ def test_search_returns_empty_for_deleted_comment(
 
 
 def test_search_returns_only_updated_comment(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test that searching for a comment returns only the updated version.
@@ -267,7 +267,7 @@ def test_search_returns_only_updated_comment(
     This test checks that after a comment is updated, the search results reflect
     the updated text and not the original one.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = "1"
     user_name = "test_user"
     backend.find_or_create_user(user_id, username=user_name)
@@ -368,12 +368,12 @@ def create_threads_and_comments_for_filter_tests(
 
 # The test covers all the filters and making this modular leads to more complex structure.
 # pylint: disable=too-many-statements
-def test_filter_threads(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_filter_threads(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test various filtering options for threads, including course_id, context, flagged, unanswered, group_id,
     commentable_id, and combinations of these filters. Asserts that the correct threads are returned for each filter.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id_0 = "course-v1:Arbisoft+SE002+2024_S2"
     course_id_1 = "course-v1:Arbisoft+SE003+2024_S2"
 
@@ -495,12 +495,12 @@ def test_filter_threads(api_client: APIClient, patched_get_backend: Any) -> None
     assert_response_contains(response, [0, 6])
 
 
-def test_pagination(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_pagination(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test pagination of search results. Ensures that results are correctly paginated and that the order of
     threads is as expected across different pages.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = "course-v1:Arbisoft+SE002+2024_S2"
 
     user_id = backend.find_or_create_user("1", username="user1")
@@ -542,12 +542,12 @@ def test_pagination(api_client: APIClient, patched_get_backend: Any) -> None:
     check_pagination(None, 3)
 
 
-def test_sorting(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_sorting(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test the sorting functionality for threads based on various criteria, such as date, activity, votes, and comments.
     Asserts that the threads are sorted correctly according to the specified sorting key.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = "course-v1:Arbisoft+SE002+2024_S2"
     user_id = backend.find_or_create_user("1", username="user1")
 
@@ -609,12 +609,12 @@ def test_sorting(api_client: APIClient, patched_get_backend: Any) -> None:
     # fetch_and_check(None, [5, 4, 3, 2, 1, 0])  # Default sorting by date
 
 
-def test_spelling_correction(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_spelling_correction(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test the spelling correction feature in search.
     Verifies that misspelled words in both thread titles and comment bodies are correct
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     commentable_id = "test_commentable"
     thread_title = "a thread about green artichokes"
     comment_body = "a comment about greed pineapples"
@@ -689,14 +689,14 @@ def test_spelling_correction(api_client: APIClient, patched_get_backend: Any) ->
 
 
 def test_spelling_correction_with_mush_clause(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the spelling correction feature & mush clause in the search.
     Verifies the even if the text matches with the threds it should also consider other
     params in the search i.e course_id
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = "course_id"
     user_id = backend.find_or_create_user("1", username="user1")
 
@@ -732,14 +732,14 @@ def test_spelling_correction_with_mush_clause(
 
 
 def test_total_results_and_num_pages(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test the total number of results and pagination of search results.
     Ensures that the total count of search results and the number of pages are calculated
     correctly based on varying text patterns in threads.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = "test/course/id"
     user_id = backend.find_or_create_user("1", username="user1")
 
@@ -811,12 +811,12 @@ def test_total_results_and_num_pages(
     test_text("one", 1, 1)
 
 
-def test_unicode_data(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_unicode_data(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test the handling of Unicode characters in search queries. Verifies that threads containing Unicode characters
     are searchable and return correct results when queried with ASCII search terms.
     """
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     text = "␎ⶀⅰ⑀⍈┣♲⺝"
     search_term = "artichoke"
     user_id = backend.find_or_create_user("1", username="user1")

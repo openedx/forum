@@ -44,11 +44,11 @@ def setup_models(backend: Any) -> tuple[str, str, str]:
     return user_id, comment_thread_id, parent_comment_id
 
 
-def test_comment_post_api(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_comment_post_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test creating a new child comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id, thread_id, parent_comment_id = setup_models(backend)
 
     response = api_client.post_json(
@@ -70,11 +70,11 @@ def test_comment_post_api(api_client: APIClient, patched_get_backend: Any) -> No
     assert parent_comment["child_count"] == 1
 
 
-def test_get_comment_api(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_get_comment_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """
     Test retrieving a single parent comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     _, _, parent_comment_id = setup_models(backend)
 
     response = api_client.get_json(f"/api/v2/comments/{parent_comment_id}", {})
@@ -90,12 +90,12 @@ def test_get_comment_api(api_client: APIClient, patched_get_backend: Any) -> Non
 
 
 def test_update_comment_endorsed_api(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test updating the endorsed status of a parent comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id, _, parent_comment_id = setup_models(backend)
 
     response = api_client.put_json(
@@ -119,11 +119,13 @@ def test_update_comment_endorsed_api(
     assert comment["endorsement"] is None
 
 
-def test_delete_parent_comment(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_delete_parent_comment(
+    api_client: APIClient, patched_mysql_backend: Any
+) -> None:
     """
     Test deleting a comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id, _, parent_comment_id = setup_models(backend)
 
     response = api_client.post_json(
@@ -140,11 +142,13 @@ def test_delete_parent_comment(api_client: APIClient, patched_get_backend: Any) 
     assert backend.get_comment(parent_comment_id) is None
 
 
-def test_delete_child_comment(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_delete_child_comment(
+    api_client: APIClient, patched_mysql_backend: Any
+) -> None:
     """
     Test creating a new child comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id, _, parent_comment_id = setup_models(backend)
 
     response = api_client.post_json(
@@ -175,10 +179,10 @@ def test_delete_child_comment(api_client: APIClient, patched_get_backend: Any) -
 
 
 def test_returns_400_when_comment_does_not_exist(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """Test 400 status code in case of invalid comment."""
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     incorrect_comment_id = backend.generate_id()
     response = api_client.get_json(f"/api/v2/comments/{incorrect_comment_id}", {})
     assert response.status_code == 400
@@ -203,12 +207,12 @@ def test_returns_400_when_comment_does_not_exist(
 
 
 def test_updates_body_correctly(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test updating the body of a comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     _, _, parent_comment_id = setup_models(backend)
     comment = backend.get_comment(parent_comment_id)
     assert comment is not None
@@ -239,12 +243,12 @@ def test_updates_body_correctly(
 
 
 def test_updates_body_correctly_without_user_id(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test updating the body of a comment without user id.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     _, _, parent_comment_id = setup_models(backend)
     new_body = "new body"
     response = api_client.put_json(
@@ -259,12 +263,12 @@ def test_updates_body_correctly_without_user_id(
 
 
 def test_update_endorsed_and_body_simultaneously(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test updating the body and endorse status of a comment simultaneously.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     _, _, parent_comment_id = setup_models(backend)
     new_body = "new body"
     response = api_client.put_json(
@@ -280,12 +284,12 @@ def test_update_endorsed_and_body_simultaneously(
 
 
 def test_thread_comment_post_api(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test creating a new parent comment.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     user_id, thread_id, _ = setup_models(backend)
 
     response = api_client.post_json(

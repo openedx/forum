@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Any, Optional
 
-from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend as backend
 from forum.constants import FORUM_DEFAULT_PAGE, FORUM_DEFAULT_PER_PAGE
 from forum.serializers.thread import ThreadSerializer
 from forum.serializers.users import UserSerializer
@@ -30,7 +30,6 @@ def get_user(
     Response:
         A response with the users data.
     """
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     if not user:
         log.error(f"Forumv2RequestError for retrieving user's data for id {user_id}.")
@@ -55,7 +54,6 @@ def update_user(
     complete: Optional[bool] = False,
 ) -> dict[str, Any]:
     """Update user."""
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     user_by_username = backend.get_user_by_username(username)
     if user and user_by_username:
@@ -91,7 +89,6 @@ def create_user(
     complete: bool = False,
 ) -> dict[str, Any]:
     """Create user."""
-    backend = get_backend(course_id)()
     user_by_id = backend.get_user(user_id)
     user_by_username = backend.get_user_by_username(username)
 
@@ -115,10 +112,10 @@ def create_user(
 
 
 def update_username(
-    user_id: str, new_username: str, course_id: Optional[str] = None
+    user_id: str,
+    new_username: str,
 ) -> dict[str, str]:
     """Update username."""
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(str(f"user not found with id: {user_id}"))
@@ -128,10 +125,10 @@ def update_username(
 
 
 def retire_user(
-    user_id: str, retired_username: str, course_id: Optional[str] = None
+    user_id: str,
+    retired_username: str,
 ) -> dict[str, str]:
     """Retire user."""
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(f"user not found with id: {user_id}")
@@ -157,7 +154,6 @@ def mark_thread_as_read(
     group_ids: Optional[list[int]] = None,
 ) -> dict[str, Any]:
     """Mark thread as read."""
-    backend = get_backend(course_id)()
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(str(f"user not found with id: {user_id}"))
@@ -199,7 +195,6 @@ def get_user_active_threads(
     group_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """Get user active threads."""
-    backend = get_backend(course_id)()
     raw_query = bool(sort_key == "user_activity")
     if not course_id:
         return {}
@@ -288,7 +283,8 @@ def _get_user_data(
 
 
 def _get_stats_for_usernames(
-    course_id: str, usernames: list[str], backend: Any
+    course_id: str,
+    usernames: list[str],
 ) -> list[dict[str, Any]]:
     """Get stats for specific usernames."""
     users = backend.get_users()
@@ -316,7 +312,6 @@ def get_user_course_stats(
     with_timestamps: bool = False,
 ) -> dict[str, Any]:
     """Get user course stats."""
-    backend = get_backend(course_id)()
     sort_criterion = backend.get_user_sort_criterion(sort_key)
     exclude_from_stats = ["_id", "course_id"]
     if not with_timestamps:
@@ -340,7 +335,7 @@ def get_user_course_stats(
                 for user_stats in paginated_stats["data"]
             ]
     else:
-        stats_query = _get_stats_for_usernames(course_id, usernames_list, backend)
+        stats_query = _get_stats_for_usernames(course_id, usernames_list)
         total_count = len(stats_query)
         num_pages = 1
         data = [
@@ -365,6 +360,5 @@ def get_user_course_stats(
 
 def update_users_in_course(course_id: str) -> dict[str, int]:
     """Update all user stats in a course."""
-    backend = get_backend(course_id)()
     updated_users = backend.update_all_users_in_course(course_id)
     return {"user_count": len(updated_users)}

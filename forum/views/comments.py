@@ -112,7 +112,6 @@ class CommentsAPIView(APIView):
             comment = update_comment(
                 comment_id,
                 request_data.get("body"),
-                request_data.get("course_id"),
                 request_data.get("user_id"),
                 anonymous,
                 anonymous_to_peers,

@@ -169,10 +169,10 @@ def build_structure_and_response(
 
 @pytest.mark.parametrize("sort_key", [None, "recency", "flagged"])
 def test_get_user_stats(
-    api_client: Any, sort_key: Optional[str], patched_get_backend: Any
+    api_client: Any, sort_key: Optional[str], patched_mysql_backend: Any
 ) -> None:
     """Test retrieving user stats with various sorting options."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = fake.word()
     authors_ids = [
         backend.find_or_create_user(str(i), username=f"author-{i}") for i in range(1, 7)
@@ -220,9 +220,11 @@ def test_stats_for_user_with_no_activity(api_client: Any) -> None:
     assert res_data == []
 
 
-def test_user_stats_filtered_by_user(api_client: Any, patched_get_backend: Any) -> None:
+def test_user_stats_filtered_by_user(
+    api_client: Any, patched_mysql_backend: Any
+) -> None:
     """Test returning user stats filtered by usernames with default/activity sort."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = fake.word()
 
     # Create some users
@@ -260,10 +262,10 @@ def test_user_stats_filtered_by_user(api_client: Any, patched_get_backend: Any) 
 
 
 def test_user_stats_with_recency_sort(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """Test returning user stats with recency sort."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = fake.word()
     # Create some users
     authors_ids = [
@@ -294,10 +296,10 @@ def test_user_stats_with_recency_sort(
 
 @pytest.fixture(name="original_stats")
 def get_original_stats(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> tuple[dict[str, Any], str, str]:
     """Setup the initial data structure and save stats."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     course_id = fake.word()
     authors_ids = [
         backend.find_or_create_user(str(i), username=f"userauthor-{i}")
@@ -337,10 +339,10 @@ def get_new_stats(
 def test_handles_deleting_threads(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting threads."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
@@ -363,10 +365,10 @@ def test_handles_deleting_threads(
 def test_handles_updating_threads(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """Test handling updating threads."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
@@ -424,10 +426,10 @@ def test_handles_adding_threads(
 def test_handles_deleting_responses(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting responses."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
@@ -452,10 +454,10 @@ def test_handles_deleting_responses(
 def test_handles_updating_responses(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """Test handling updating responses."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
@@ -481,10 +483,10 @@ def test_handles_updating_responses(
 def test_handles_deleting_replies(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_get_backend: Any,
+    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting replies."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
@@ -510,10 +512,10 @@ def test_handles_deleting_replies(
 
 
 def test_build_course_stats_with_anonymous_posts(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """Test that anonymous posts are not included in user stats after a non-anonymous post."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     # Create a test user
     user_id = backend.find_or_create_user(user_id="3", username="user3")
     course_id = "course-1"
@@ -549,9 +551,9 @@ def test_build_course_stats_with_anonymous_posts(
     assert stats["user_stats"][0]["threads"] == 1
 
 
-def test_update_user_stats(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_update_user_stats(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """Test that user stats are updated when requested."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     # Create a test course ID and users
     course_id = fake.word()
     authors_ids = [
@@ -593,9 +595,9 @@ def test_update_user_stats(api_client: APIClient, patched_get_backend: Any) -> N
     )  # User stats should now match the expected data
 
 
-def test_mark_thread_as_read(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_mark_thread_as_read(api_client: APIClient, patched_mysql_backend: Any) -> None:
     """Test that a thread is marked as read for the user."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id = "1"
     username = "user1"
     backend.find_or_create_user(user_id=user_id, username=username)

@@ -67,9 +67,9 @@ def mock_elasticsearch_index_backend() -> None:
 
 
 @pytest.fixture(name="user_data")
-def create_test_user(patched_get_backend: t.Any) -> tuple[str, str]:
+def create_test_user(patched_mysql_backend: t.Any) -> tuple[str, str]:
     """Create a user."""
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
 
     user_id = "1"
     username = "test_user"

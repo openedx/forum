@@ -45,12 +45,12 @@ def test_initialize_indexes() -> None:
 
 
 def test_insert_document(
-    patched_get_backend: t.Any, user_data: tuple[str, str]
+    patched_mysql_backend: t.Any, user_data: tuple[str, str]
 ) -> None:
     index_backend = forum.search.meilisearch.MeilisearchIndexBackend()
     index_backend.initialize_indices()
 
-    backend = patched_get_backend()
+    backend = patched_mysql_backend()
     user_id, _ = user_data
     comment_thread_id = backend.create_thread(
         {

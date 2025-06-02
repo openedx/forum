@@ -1,15 +1,15 @@
 """Tests for subscription apis."""
 
-from typing import Any
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 
 
 def test_get_subscribed_threads(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test getting subscribed threads for a user.
@@ -41,7 +41,7 @@ def test_get_subscribed_threads(
 
 
 def test_get_subscribed_threads_with_filters(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test getting subscribed threads for a user with filters.
@@ -79,7 +79,7 @@ def test_get_subscribed_threads_with_filters(
     assert threads[0]["id"] == comment_thread_id
 
 
-def test_subscribe_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_subscribe_thread(api_client: APIClient) -> None:
     """
     Test subscribing to a thread.
     """
@@ -111,7 +111,7 @@ def test_subscribe_thread(api_client: APIClient, patched_mysql_backend: Any) -> 
     assert subscription is not None
 
 
-def test_unsubscribe_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_unsubscribe_thread(api_client: APIClient) -> None:
     """
     Test unsubscribing from a thread.
     """
@@ -148,7 +148,7 @@ def test_unsubscribe_thread(api_client: APIClient, patched_mysql_backend: Any) -
 
 
 def test_get_subscribed_threads_with_pagination(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test getting subscribed threads for a user with pagination.
@@ -222,7 +222,7 @@ def test_get_subscribed_threads_with_pagination(
 
 
 def test_get_thread_subscriptions(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test getting subscriptions of a thread.
@@ -266,7 +266,7 @@ def test_get_thread_subscriptions(
 
 
 def test_get_thread_subscriptions_with_pagination(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test getting subscriptions of a thread with pagination.

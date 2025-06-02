@@ -1,14 +1,14 @@
 """Test flags api endpoints."""
 
-from typing import Any
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 
 
-def test_comment_thread_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_comment_thread_api(api_client: APIClient) -> None:
     """
     Test the comment thread flag API.
 
@@ -61,7 +61,7 @@ def test_comment_thread_api(api_client: APIClient, patched_mysql_backend: Any) -
     assert comment["abuse_flaggers"] == []
 
 
-def test_comment_flag_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_comment_flag_api(api_client: APIClient) -> None:
     """
     Test the comment flag API.
 
@@ -126,7 +126,7 @@ def test_comment_flag_api(api_client: APIClient, patched_mysql_backend: Any) -> 
 
 
 def test_comment_flag_api_invalid_data(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test the comment flag API with invalid data.
@@ -147,7 +147,7 @@ def test_comment_flag_api_invalid_data(
 
 
 def test_comment_flag_api_with_all_param(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test the comment flag API with the `all` parameter.
@@ -252,7 +252,7 @@ def test_comment_flag_api_with_all_param(
 
 
 def test_flag_unflag_thread_twice(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test flagging a thread, unflagging it, flagging it again, and unflagging it again.

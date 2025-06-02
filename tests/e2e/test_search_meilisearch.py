@@ -7,6 +7,7 @@ import typing as t
 from django.test import override_settings
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 import forum.search.meilisearch
 
 pytestmark = pytest.mark.django_db
@@ -44,9 +45,7 @@ def test_initialize_indexes() -> None:
     ] == indexes
 
 
-def test_insert_document(
-    patched_mysql_backend: t.Any, user_data: tuple[str, str]
-) -> None:
+def test_insert_document(user_data: tuple[str, str]) -> None:
     index_backend = forum.search.meilisearch.MeilisearchIndexBackend()
     index_backend.initialize_indices()
 

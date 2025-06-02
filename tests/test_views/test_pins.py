@@ -1,15 +1,15 @@
 """Test pin/unpin thread api endpoints."""
 
-from typing import Any
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 
 
 def test_pin_and_unpin_thread_api(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test the pin/unpin thread API.
@@ -67,7 +67,7 @@ def test_pin_and_unpin_thread_api(
 
 
 def test_pin_unpin_thread_api_invalid_data(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test the invalid data for pin/unpin thread API.

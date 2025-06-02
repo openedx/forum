@@ -1,19 +1,18 @@
 """Test commentables count api endpoint."""
 
-from typing import Any
-
 import random
 import uuid
 
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 
 
 def test_get_commentables_counts_api(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test retrieving counts of discussion and question threads for multiple commentables within a course.

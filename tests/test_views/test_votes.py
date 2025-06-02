@@ -4,13 +4,14 @@ from typing import Any
 
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(name="user")
-def get_user(patched_mysql_backend: Any) -> dict[str, Any]:
+def get_user() -> dict[str, Any]:
     """
     Fixture to create and return a test user.
 
@@ -26,7 +27,7 @@ def get_user(patched_mysql_backend: Any) -> dict[str, Any]:
 
 
 @pytest.fixture(name="thread")
-def get_thread(user: dict[str, Any], patched_mysql_backend: Any) -> dict[str, Any]:
+def get_thread(user: dict[str, Any]) -> dict[str, Any]:
     """
     Fixture to create and return a test thread.
 
@@ -62,7 +63,8 @@ def get_thread(user: dict[str, Any], patched_mysql_backend: Any) -> dict[str, An
 
 @pytest.fixture(name="comment")
 def get_comment(
-    user: dict[str, Any], thread: dict[str, Any], patched_mysql_backend: Any
+    user: dict[str, Any],
+    thread: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Fixture to create and return a test comment.
@@ -96,7 +98,6 @@ def test_upvote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting a thread.
@@ -137,7 +138,6 @@ def test_vote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting, downvote, and again upvotes the same thread.
@@ -194,7 +194,6 @@ def test_downvote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for downvoting a thread.
@@ -231,7 +230,6 @@ def test_remove_vote_thread_api(
     api_client: APIClient,
     user: dict[str, Any],
     thread: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for removing a vote from a thread.
@@ -295,7 +293,6 @@ def test_upvote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for upvoting a comment.
@@ -332,7 +329,6 @@ def test_downvote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for downvoting a comment.
@@ -369,7 +365,6 @@ def test_remove_vote_comment_api(
     api_client: APIClient,
     user: dict[str, Any],
     comment: dict[str, Any],
-    patched_mysql_backend: Any,
 ) -> None:
     """
     Test the API for removing a vote from a comment.

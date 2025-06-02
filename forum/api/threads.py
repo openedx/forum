@@ -116,7 +116,6 @@ def prepare_thread_api_response(
 def get_thread(
     thread_id: str,
     params: Optional[dict[str, Any]] = None,
-    course_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Get the thread for the given thread_id.
@@ -148,7 +147,6 @@ def get_thread(
             True,
             params,
             True,
-            course_id=course_id,
         )
     except ValidationError as error:
         log.error(f"Validation error in get_thread: {error}")

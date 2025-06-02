@@ -252,12 +252,12 @@ def test_comment_flag_api_with_all_param(
 
 
 def test_flag_unflag_thread_twice(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_mysql_backend: Any
 ) -> None:
     """
     Test flagging a thread, unflagging it, flagging it again, and unflagging it again.
     """
-    backend = patched_get_backend
+    backend = patched_mysql_backend
     flag_user = backend.generate_id()
     author_user = backend.generate_id()
     backend.find_or_create_user(flag_user, flag_user)

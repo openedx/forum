@@ -6,9 +6,10 @@ from typing import Any, Optional
 import pytest
 
 from django.contrib.auth import get_user_model
-from test_utils.client import APIClient
+
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from forum.backends.mysql.models import ReadState
-from forum.backends.mysql.api import MySQLBackend
+from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
 User = get_user_model()
@@ -87,7 +88,6 @@ def is_thread_id_exists_in_user_read_state(user_id: str, thread_id: str) -> bool
 
 def test_read_states_deletion_of_a_thread_on_thread_deletion(
     api_client: APIClient,
-    patched_mysql_backend: MySQLBackend,
 ) -> None:
     """Test delete read_states of the thread on deletion of a thread for mongodb."""
     user_id, thread_id = setup_models(backend=patched_mysql_backend)
@@ -128,7 +128,6 @@ def test_read_states_deletion_of_a_thread_on_thread_deletion(
 
 def test_read_states_deletion_on_thread_deletion_without_read_states(
     api_client: APIClient,
-    patched_mysql_backend: MySQLBackend,
 ) -> None:
     """Test delete read_states of the thread on deletion of a thread when there are no read states."""
     user_id, thread_id = setup_models(backend=patched_mysql_backend)
@@ -156,7 +155,6 @@ def test_read_states_deletion_on_thread_deletion_without_read_states(
 
 def test_read_states_deletion_on_thread_deletion_with_multiple_read_states(
     api_client: APIClient,
-    patched_mysql_backend: MySQLBackend,
 ) -> None:
     """Test delete read_states of the thread on deletion of a thread when there are multiple read states."""
     # Setup first thread and read state
@@ -210,7 +208,6 @@ def test_read_states_deletion_on_thread_deletion_with_multiple_read_states(
 
 def test_read_states_deletion_checks_thread_id_existence(
     api_client: APIClient,
-    patched_mysql_backend: MySQLBackend,
 ) -> None:
     """Test that read state deletion only occurs when thread_id exists in last_read_times."""
     user_id, thread_id = setup_models(backend=patched_mysql_backend)
@@ -233,7 +230,7 @@ def test_read_states_deletion_checks_thread_id_existence(
 
 
 def test_filter_flagged_posts(
-    api_client: APIClient, patched_mysql_backend: MySQLBackend
+    api_client: APIClient,
 ) -> None:
     """Test filter flagged posts through get thread API."""
     backend = patched_mysql_backend
@@ -255,7 +252,7 @@ def test_filter_flagged_posts(
             assert result["abuse_flaggers"] == [abuse_flaggers]
 
 
-def test_update_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_update_thread(api_client: APIClient) -> None:
     """Test updaing a thread."""
     backend = patched_mysql_backend
     user_id, thread_id = setup_models(backend=backend)
@@ -281,7 +278,7 @@ def test_update_thread(api_client: APIClient, patched_mysql_backend: Any) -> Non
 
 
 def test_update_thread_without_user_id(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test updaing a thread without user id."""
     backend = patched_mysql_backend
@@ -305,7 +302,7 @@ def test_update_thread_without_user_id(
     assert updated_thread_from_db["thread_type"] == "question"
 
 
-def test_update_close_reason(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_update_close_reason(api_client: APIClient) -> None:
     """Test close a thread through update thread API."""
     backend = patched_mysql_backend
     user_id, thread_id = setup_models(backend=backend)
@@ -327,7 +324,7 @@ def test_update_close_reason(api_client: APIClient, patched_mysql_backend: Any) 
 
 
 def test_closing_and_reopening_thread_clears_reason_code(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test close a thread and reopen a thread through update thread API."""
     backend = patched_mysql_backend
@@ -359,7 +356,7 @@ def test_closing_and_reopening_thread_clears_reason_code(
 
 
 def test_update_thread_not_exist(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test thread does not exists through update thread API."""
     backend = patched_mysql_backend
@@ -374,7 +371,7 @@ def test_update_thread_not_exist(
     assert response.status_code == 400
 
 
-def test_unicode_data(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_unicode_data(api_client: APIClient) -> None:
     """Test data through update thread API."""
     backend = patched_mysql_backend
     user_id, thread_id = setup_models(backend=backend)
@@ -396,7 +393,7 @@ def test_unicode_data(api_client: APIClient, patched_mysql_backend: Any) -> None
         assert updated_thread_from_db["title"] == text
 
 
-def test_delete_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_delete_thread(api_client: APIClient) -> None:
     """Test delete a thread."""
     backend = patched_mysql_backend
     user_id, thread_id = setup_models(backend=backend)
@@ -413,7 +410,7 @@ def test_delete_thread(api_client: APIClient, patched_mysql_backend: Any) -> Non
 
 
 def test_delete_thread_not_exist(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test thread does not exists through delete thread API."""
     backend = patched_mysql_backend
@@ -422,7 +419,7 @@ def test_delete_thread_not_exist(
     assert response.status_code == 400
 
 
-def test_invalid_data(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_invalid_data(api_client: APIClient) -> None:
     """Test invalid data"""
     setup_models(patched_mysql_backend)
     response = api_client.get_json("/api/v2/threads", {})
@@ -433,7 +430,7 @@ def test_invalid_data(api_client: APIClient, patched_mysql_backend: Any) -> None
     assert response.status_code == 400
 
 
-def test_filter_by_course(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_filter_by_course(api_client: APIClient) -> None:
     """Test filter threads by course id through get thread API."""
     setup_models(patched_mysql_backend)
     params = {"course_id": "course1"}
@@ -447,7 +444,7 @@ def test_filter_by_course(api_client: APIClient, patched_mysql_backend: Any) -> 
 
 
 def test_filter_exclude_standalone(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test filter exclude standalone threads through get thread API."""
     backend = patched_mysql_backend
@@ -477,7 +474,7 @@ def test_filter_exclude_standalone(
 
 
 def test_api_with_count_flagged(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test thread API with count flagged."""
     backend = patched_mysql_backend
@@ -508,7 +505,7 @@ def test_api_with_count_flagged(
 
 
 def test_no_matching_course_id(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test no matching course id through get thread API."""
     backend = patched_mysql_backend
@@ -521,7 +518,7 @@ def test_no_matching_course_id(
     assert len(results) == 0
 
 
-def test_filter_by_author(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_filter_by_author(api_client: APIClient) -> None:
     """Test filter threads by author id through get thread API."""
     backend = patched_mysql_backend
     user_id1, _ = setup_models(backend=backend)
@@ -547,7 +544,7 @@ def test_filter_by_author(api_client: APIClient, patched_mysql_backend: Any) -> 
     assert len(result) == 0
 
 
-def test_anonymous_threads(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_anonymous_threads(api_client: APIClient) -> None:
     """Test Anonymus threads are only visible to Authors"""
     backend = patched_mysql_backend
     course_id = "course-1"
@@ -594,7 +591,7 @@ def test_anonymous_threads(api_client: APIClient, patched_mysql_backend: Any) ->
     assert len(result) == 2
 
 
-def test_unresponded_filter(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_unresponded_filter(api_client: APIClient) -> None:
     """Test unresponded filter"""
     backend = patched_mysql_backend
     _, thread_id = setup_models(backend)
@@ -610,7 +607,7 @@ def test_unresponded_filter(api_client: APIClient, patched_mysql_backend: Any) -
     assert len(thread) == 1
 
 
-def test_filter_by_post_type(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_filter_by_post_type(api_client: APIClient) -> None:
     """Test filter threads by thread_type through get thread API."""
     backend = patched_mysql_backend
     setup_models(backend=backend)
@@ -648,7 +645,7 @@ def test_filter_by_post_type(api_client: APIClient, patched_mysql_backend: Any) 
 
 
 def test_filter_unanswered_questions(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test filter unanswered questions through get thread API."""
     backend = patched_mysql_backend
@@ -720,7 +717,7 @@ def test_filter_unanswered_questions(
         assert thread["body"] == "Thread 3"
 
 
-def test_get_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_get_thread(api_client: APIClient) -> None:
     """Test get thread by thread_id."""
     backend = patched_mysql_backend
     _, thread_id = setup_models(backend)
@@ -746,7 +743,7 @@ def test_get_thread(api_client: APIClient, patched_mysql_backend: Any) -> None:
 
 
 def test_computes_endorsed_correctly(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test computes endorsed correctly through get thread API."""
     backend = patched_mysql_backend
@@ -780,7 +777,7 @@ def test_computes_endorsed_correctly(
 
 
 def test_no_children_for_informational_request(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test no children returned from get thread by thread_id API"""
     backend = patched_mysql_backend
@@ -812,7 +809,9 @@ def test_no_children_for_informational_request(
     assert "children" not in thread
 
 
-def test_mark_as_read(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_mark_as_read(
+    api_client: APIClient,
+) -> None:
     """Test mark as read"""
     backend = patched_mysql_backend
     _, thread_id = setup_models(backend)
@@ -836,7 +835,7 @@ def test_mark_as_read(api_client: APIClient, patched_mysql_backend: Any) -> None
 
 
 def test_thread_with_comments(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test children returned from get thread by thread_id API"""
     backend = patched_mysql_backend
@@ -862,7 +861,7 @@ def test_thread_with_comments(
 
 
 def test_endorement_is_none_after_unanswering_a_comment_in_question(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test endorsement is None by marking it as unanswered.
@@ -915,7 +914,7 @@ def test_endorement_is_none_after_unanswering_a_comment_in_question(
 
 
 def test_response_for_thread_type_question(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test responses for thread_type question.
@@ -1019,7 +1018,7 @@ def test_response_for_thread_type_question(
     assert thread["non_endorsed_resp_total"] == 1
 
 
-def test_filter_by_group_id(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_filter_by_group_id(api_client: APIClient) -> None:
     """
     Filter threads by their group_id. This should return:
     - Threads with the specified group ID.
@@ -1056,7 +1055,7 @@ def test_filter_by_group_id(api_client: APIClient, patched_mysql_backend: Any) -
     assert results[1]["group_id"] is None
 
 
-def test_filter_by_group_ids(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_filter_by_group_ids(api_client: APIClient) -> None:
     """
     Filter threads by their group IDs. This should return:
     - Threads with the specified group IDs.
@@ -1095,7 +1094,7 @@ def test_filter_by_group_ids(api_client: APIClient, patched_mysql_backend: Any) 
 
 
 def test_pagination_in_thread_comments(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test pagination in the thread comments, including various cases such as

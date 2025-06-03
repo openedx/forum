@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import pytest
 from requests import Response
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from forum.search import get_index_search_backend
 from forum.search.es import ElasticsearchIndexBackend
 from test_utils.client import APIClient
@@ -62,9 +63,7 @@ def refresh_elastic_search_indices() -> None:
     get_index_search_backend().refresh_indices()
 
 
-def test_invalid_request(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
-) -> None:
+def test_invalid_request(api_client: APIClient, user_data: tuple[str, str]) -> None:
     """
     Test that invalid requests to the search API return a 400 status.
 
@@ -108,7 +107,7 @@ def test_invalid_request(
 
 
 def test_search_returns_empty_for_deleted_thread(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test that searching for a deleted thread returns no results.
@@ -143,7 +142,7 @@ def test_search_returns_empty_for_deleted_thread(
 
 
 def test_search_returns_only_updated_thread(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test that searching for a thread returns only the updated version.
@@ -183,7 +182,7 @@ def test_search_returns_only_updated_thread(
 
 
 def test_search_returns_empty_for_deleted_comment(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test that searching for a deleted comment returns no results.
@@ -224,7 +223,7 @@ def test_search_returns_empty_for_deleted_comment(
 
 
 def test_search_returns_only_updated_comment(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test that searching for a comment returns only the updated version.
@@ -339,7 +338,7 @@ def assert_response_contains(
 
 
 def test_filter_threads_by_course_id(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by course_id."""
     backend = patched_mysql_backend()
@@ -360,7 +359,7 @@ def test_filter_threads_by_course_id(
 
 
 def test_filter_threads_by_context(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by context."""
     backend = patched_mysql_backend()
@@ -380,7 +379,7 @@ def test_filter_threads_by_context(
 
 
 def test_filter_threads_by_unread(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by unread status."""
     backend = patched_mysql_backend()
@@ -408,7 +407,7 @@ def test_filter_threads_by_unread(
 
 
 def test_filter_threads_by_flagged(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by flagged status."""
     backend = patched_mysql_backend()
@@ -427,7 +426,7 @@ def test_filter_threads_by_flagged(
 
 
 def test_filter_threads_by_unanswered(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by unanswered status."""
     backend = patched_mysql_backend()
@@ -473,7 +472,7 @@ def test_filter_threads_by_unanswered(
 
 
 def test_filter_threads_by_commentable_id(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by commentable_id."""
     backend = patched_mysql_backend()
@@ -500,7 +499,7 @@ def test_filter_threads_by_commentable_id(
 
 
 def test_filter_threads_by_group_id(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads by group_id."""
     backend = patched_mysql_backend()
@@ -527,7 +526,7 @@ def test_filter_threads_by_group_id(
 
 
 def test_filter_threads_combined(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """Test filtering threads with multiple filters combined."""
     backend = patched_mysql_backend()
@@ -550,9 +549,7 @@ def test_filter_threads_combined(
     assert_response_contains(response, [0, 6], threads_ids)
 
 
-def test_pagination(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
-) -> None:
+def test_pagination(api_client: APIClient, user_data: tuple[str, str]) -> None:
     """
     Test pagination of search results. Ensures that results are correctly paginated and that the order of
     threads is as expected across different pages.
@@ -599,9 +596,7 @@ def test_pagination(
     check_pagination(None, 3)
 
 
-def test_sorting(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
-) -> None:
+def test_sorting(api_client: APIClient, user_data: tuple[str, str]) -> None:
     """
     Test the sorting functionality for threads based on various criteria, such as date, activity, votes, and comments.
     Asserts that the threads are sorted correctly according to the specified sorting key.
@@ -669,9 +664,7 @@ def test_sorting(
     fetch_and_check(None, [5, 4, 3, 2, 1, 0])  # Default sorting by date
 
 
-def test_spelling_correction(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
-) -> None:
+def test_spelling_correction(api_client: APIClient, user_data: tuple[str, str]) -> None:
     """
     Test the spelling correction feature in search.
     Verifies that misspelled words in both thread titles and comment bodies are correct
@@ -737,7 +730,7 @@ def test_spelling_correction(
 
 
 def test_spelling_correction_with_mush_clause(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test the spelling correction feature & mush clause in the search.
@@ -777,7 +770,7 @@ def test_spelling_correction_with_mush_clause(
 
 
 def test_total_results_and_num_pages(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
+    api_client: APIClient, user_data: tuple[str, str]
 ) -> None:
     """
     Test the total number of results and pagination of search results.
@@ -839,9 +832,7 @@ def test_total_results_and_num_pages(
     test_text("one", 1, 1)
 
 
-def test_unicode_data(
-    api_client: APIClient, patched_mysql_backend: Any, user_data: tuple[str, str]
-) -> None:
+def test_unicode_data(api_client: APIClient, user_data: tuple[str, str]) -> None:
     """
     Test the handling of Unicode characters in search queries. Verifies that threads containing Unicode characters
     are searchable and return correct results when queried with ASCII search terms.

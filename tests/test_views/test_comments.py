@@ -3,6 +3,7 @@
 from typing import Any
 import pytest
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
@@ -44,7 +45,7 @@ def setup_models(backend: Any) -> tuple[str, str, str]:
     return user_id, comment_thread_id, parent_comment_id
 
 
-def test_comment_post_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_comment_post_api(api_client: APIClient) -> None:
     """
     Test creating a new child comment.
     """
@@ -70,7 +71,7 @@ def test_comment_post_api(api_client: APIClient, patched_mysql_backend: Any) -> 
     assert parent_comment["child_count"] == 1
 
 
-def test_get_comment_api(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_get_comment_api(api_client: APIClient) -> None:
     """
     Test retrieving a single parent comment.
     """
@@ -90,7 +91,7 @@ def test_get_comment_api(api_client: APIClient, patched_mysql_backend: Any) -> N
 
 
 def test_update_comment_endorsed_api(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test updating the endorsed status of a parent comment.
@@ -120,7 +121,7 @@ def test_update_comment_endorsed_api(
 
 
 def test_delete_parent_comment(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test deleting a comment.
@@ -143,7 +144,7 @@ def test_delete_parent_comment(
 
 
 def test_delete_child_comment(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test creating a new child comment.
@@ -179,7 +180,7 @@ def test_delete_child_comment(
 
 
 def test_returns_400_when_comment_does_not_exist(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test 400 status code in case of invalid comment."""
     backend = patched_mysql_backend
@@ -207,7 +208,7 @@ def test_returns_400_when_comment_does_not_exist(
 
 
 def test_updates_body_correctly(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test updating the body of a comment.
@@ -243,7 +244,7 @@ def test_updates_body_correctly(
 
 
 def test_updates_body_correctly_without_user_id(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test updating the body of a comment without user id.
@@ -263,7 +264,7 @@ def test_updates_body_correctly_without_user_id(
 
 
 def test_update_endorsed_and_body_simultaneously(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test updating the body and endorse status of a comment simultaneously.
@@ -284,7 +285,7 @@ def test_update_endorsed_and_body_simultaneously(
 
 
 def test_thread_comment_post_api(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """
     Test creating a new parent comment.

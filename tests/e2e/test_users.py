@@ -9,6 +9,7 @@ from typing import Any, Optional
 import pytest
 from faker import Faker
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 fake = Faker()
@@ -169,7 +170,8 @@ def build_structure_and_response(
 
 @pytest.mark.parametrize("sort_key", [None, "recency", "flagged"])
 def test_get_user_stats(
-    api_client: Any, sort_key: Optional[str], patched_mysql_backend: Any
+    api_client: Any,
+    sort_key: Optional[str],
 ) -> None:
     """Test retrieving user stats with various sorting options."""
     backend = patched_mysql_backend()
@@ -221,7 +223,7 @@ def test_stats_for_user_with_no_activity(api_client: Any) -> None:
 
 
 def test_user_stats_filtered_by_user(
-    api_client: Any, patched_mysql_backend: Any
+    api_client: Any,
 ) -> None:
     """Test returning user stats filtered by usernames with default/activity sort."""
     backend = patched_mysql_backend()
@@ -262,7 +264,7 @@ def test_user_stats_filtered_by_user(
 
 
 def test_user_stats_with_recency_sort(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test returning user stats with recency sort."""
     backend = patched_mysql_backend()
@@ -296,7 +298,7 @@ def test_user_stats_with_recency_sort(
 
 @pytest.fixture(name="original_stats")
 def get_original_stats(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> tuple[dict[str, Any], str, str]:
     """Setup the initial data structure and save stats."""
     backend = patched_mysql_backend()
@@ -339,7 +341,6 @@ def get_new_stats(
 def test_handles_deleting_threads(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting threads."""
     backend = patched_mysql_backend()
@@ -365,7 +366,6 @@ def test_handles_deleting_threads(
 def test_handles_updating_threads(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling updating threads."""
     backend = patched_mysql_backend()
@@ -426,7 +426,6 @@ def test_handles_adding_threads(
 def test_handles_deleting_responses(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting responses."""
     backend = patched_mysql_backend()
@@ -440,7 +439,7 @@ def test_handles_deleting_responses(
     )
     assert comment is not None
 
-    response = api_client.delete_json(f"/api/v2/comments/{str(comment['_id'])}")
+    response = api_client.delete_json(f"/api/v2/comments/{str(comment.get('_id'))}")
     assert response.status_code == 200
 
     new_stats = get_new_stats(api_client, course_id, username)
@@ -454,7 +453,6 @@ def test_handles_deleting_responses(
 def test_handles_updating_responses(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling updating responses."""
     backend = patched_mysql_backend()
@@ -467,7 +465,7 @@ def test_handles_updating_responses(
     assert comment is not None
 
     response = api_client.put_json(
-        f"/api/v2/comments/{comment['_id']}",
+        f"/api/v2/comments/{comment.get('_id')}",
         data={"body": "new body", "user_id": "1"},
     )
     assert response.status_code == 200
@@ -483,7 +481,6 @@ def test_handles_updating_responses(
 def test_handles_deleting_replies(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling deleting replies."""
     backend = patched_mysql_backend()
@@ -499,7 +496,7 @@ def test_handles_deleting_replies(
     assert reply is not None
 
     # Delete the reply
-    response = api_client.delete_json(f"/api/v2/comments/{str(reply['_id'])}")
+    response = api_client.delete_json(f"/api/v2/comments/{str(reply.get('_id'))}")
     assert response.status_code == 200
     # Fetch new stats
     new_stats = get_new_stats(api_client, course_id, username)
@@ -512,7 +509,7 @@ def test_handles_deleting_replies(
 
 
 def test_build_course_stats_with_anonymous_posts(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test that anonymous posts are not included in user stats after a non-anonymous post."""
     backend = patched_mysql_backend()
@@ -551,7 +548,7 @@ def test_build_course_stats_with_anonymous_posts(
     assert stats["user_stats"][0]["threads"] == 1
 
 
-def test_update_user_stats(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_update_user_stats(api_client: APIClient) -> None:
     """Test that user stats are updated when requested."""
     backend = patched_mysql_backend()
     # Create a test course ID and users
@@ -595,7 +592,7 @@ def test_update_user_stats(api_client: APIClient, patched_mysql_backend: Any) ->
     )  # User stats should now match the expected data
 
 
-def test_mark_thread_as_read(api_client: APIClient, patched_mysql_backend: Any) -> None:
+def test_mark_thread_as_read(api_client: APIClient) -> None:
     """Test that a thread is marked as read for the user."""
     backend = patched_mysql_backend()
     user_id = "1"
@@ -631,7 +628,7 @@ def test_mark_thread_as_read(api_client: APIClient, patched_mysql_backend: Any) 
 
 
 def test_retire_user_inactive(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> None:
     """Test retiring an inactive user."""
 

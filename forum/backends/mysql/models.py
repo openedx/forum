@@ -188,6 +188,10 @@ class Content(models.Model):
         """Return a dictionary representation of the content."""
         raise NotImplementedError
 
+    def doc_to_hash(self) -> dict[str, Any]:
+        """Return a dictionary representation of the content."""
+        raise NotImplementedError
+
     class Meta:
         app_label = "forum"
         abstract = True

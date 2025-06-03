@@ -9,6 +9,7 @@ from typing import Any, Optional
 import pytest
 from faker import Faker
 
+from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
 from test_utils.client import APIClient
 
 fake = Faker()
@@ -184,10 +185,10 @@ def get_new_stats(
 
 @pytest.fixture(name="original_stats")
 def get_original_stats(
-    api_client: APIClient, patched_mysql_backend: Any
+    api_client: APIClient,
 ) -> tuple[dict[str, Any], str, str]:
     """Setup the initial data structure and save stats."""
-    backend = patched_mysql_backend()
+    backend: patched_mysql_backend = patched_mysql_backend()
     course_id = fake.word()
     authors_ids = [
         backend.find_or_create_user(str(i), username=f"userauthor-{i}")
@@ -212,7 +213,6 @@ def get_original_stats(
 def test_handles_removing_flags(
     api_client: APIClient,
     original_stats: tuple[dict[str, Any], str, str],
-    patched_mysql_backend: Any,
 ) -> None:
     """Test handling removing abuse flags."""
     backend = patched_mysql_backend()
@@ -228,11 +228,11 @@ def test_handles_removing_flags(
     assert comment is not None
 
     # Set abuse flaggers to two users
-    backend.update_comment(str(comment["_id"]), abuse_flaggers=["1", "2"])
+    backend.update_comment(str(comment.get("_id")), abuse_flaggers=["1", "2"])
 
     # Remove the flag for the first user
     response = api_client.put_json(
-        f"/api/v2/comments/{str(comment['_id'])}/abuse_unflag",
+        f"/api/v2/comments/{str(comment.get('_id'))}/abuse_unflag",
         data={"user_id": "1"},
     )
     assert response.status_code == 200
@@ -245,7 +245,7 @@ def test_handles_removing_flags(
 
     # Remove the flag for the second user
     response = api_client.put_json(
-        f"/api/v2/comments/{str(comment['_id'])}/abuse_unflag",
+        f"/api/v2/comments/{str(comment.get('_id'))}/abuse_unflag",
         data={"user_id": "2"},
     )
     assert response.status_code == 200

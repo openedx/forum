@@ -9,6 +9,7 @@ from rest_framework import serializers
 from forum.serializers.contents import ContentSerializer
 from forum.serializers.custom_datetime import CustomDateTimeField
 from forum.utils import prepare_comment_data_for_get_children
+from forum.backends.mysql.models import Comment
 
 
 class EndorsementSerializer(serializers.Serializer[dict[str, Any]]):
@@ -32,9 +33,68 @@ class EndorsementSerializer(serializers.Serializer[dict[str, Any]]):
         raise NotImplementedError
 
 
+class MySQLCommentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for MySQL comment model.
+
+    This serializer is used specifically for the MySQL backend and handles the direct
+    model serialization of Comment objects.
+
+    Attributes:
+        votes (SerializerMethodField): Method field to get vote information
+        abuse_flaggers (SerializerMethodField): Method field to get abuse flaggers
+        historical_abuse_flaggers (SerializerMethodField): Method field to get historical abuse flaggers
+        children (SerializerMethodField): Method field to get child comments
+    """
+
+    votes = serializers.SerializerMethodField()
+    abuse_flaggers = serializers.SerializerMethodField()
+    historical_abuse_flaggers = serializers.SerializerMethodField()
+    children = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = (
+            'id',
+            'author',
+            'comment_thread',
+            'parent',
+            'body',
+            'course_id',
+            'endorsement',
+            'sort_key',
+            'depth',
+            'anonymous',
+            'anonymous_to_peers',
+            'child_count',
+            'votes',
+            'abuse_flaggers',
+            'historical_abuse_flaggers',
+            'children',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_votes(self, obj):
+        return obj.get_votes
+
+    def get_abuse_flaggers(self, obj):
+        return obj.abuse_flaggers
+
+    def get_historical_abuse_flaggers(self, obj):
+        return obj.historical_abuse_flaggers
+
+    def get_children(self, obj):
+        return MySQLCommentSerializer(obj.comment_set.all(), many=True).data
+
+
 class CommentSerializer(ContentSerializer):
     """
     Serializer for handling user comments on threads.
+
+    This is the main serializer used by the API endpoints. It inherits from ContentSerializer
+    and provides additional fields specific to comments.
 
     Inherits from ContentSerializer.
 

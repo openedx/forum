@@ -7,6 +7,21 @@ Serializes the votes field in the ContentSerializer.
 from typing import Any
 
 from rest_framework import serializers
+from forum.backends.mysql.models import UserVote
+from forum.utils import validate_upvote_or_downvote
+
+
+class UserVoteSerializer(serializers.ModelSerializer):
+    """Serializer for user votes."""
+
+    class Meta:
+        model = UserVote
+        fields = ('id', 'user', 'content_type', 'content_object_id', 'vote')
+        read_only_fields = ('id',)
+
+    def validate_vote(self, value):
+        validate_upvote_or_downvote(value)
+        return value
 
 
 class VotesSerializer(serializers.Serializer[dict[str, Any]]):

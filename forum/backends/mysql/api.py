@@ -95,15 +95,7 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        abuse_flaggers = entity.abuse_flaggers
-        first_flag_added = False
-        if user.pk not in abuse_flaggers:
-            AbuseFlagger.objects.create(
-                user=user, content=entity, flagged_at=timezone.now()
-            )
-            first_flag_added = len(abuse_flaggers) == 1
-        if first_flag_added:
-            cls.update_stats_for_course(user_id, entity.course_id, active_flags=1)
+        entity.flag_abuse(user)
         return entity.to_dict()
 
     @classmethod
@@ -118,20 +110,7 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        has_no_historical_flags = len(entity.historical_abuse_flaggers) == 0
-        if user.pk in entity.abuse_flaggers:
-            AbuseFlagger.objects.filter(
-                user=user,
-                content_object_id=entity.pk,
-                content_type=entity.content_type,
-            ).delete()
-            cls.update_stats_after_unflag(
-                entity.author.pk,
-                entity.pk,
-                has_no_historical_flags,
-                entity_type=entity.type,
-            )
-
+        entity.unflag_abuse(user)
         return entity.to_dict()
 
     @classmethod
@@ -143,32 +122,7 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        has_no_historical_flags = len(entity.historical_abuse_flaggers) == 0
-        historical_abuse_flaggers = list(
-            set(entity.historical_abuse_flaggers) | set(entity.abuse_flaggers)
-        )
-        for flagger_id in historical_abuse_flaggers:
-            # Skip if HistoricalAbuseFlagger already exists for this user and entity
-            if not HistoricalAbuseFlagger.objects.filter(
-                content_type=entity.content_type,
-                content_object_id=entity.pk,
-                user_id=flagger_id,
-            ).exists():
-                HistoricalAbuseFlagger.objects.create(
-                    content=entity,
-                    user_id=flagger_id,
-                    flagged_at=timezone.now(),
-                )
-        AbuseFlagger.objects.filter(
-            content_object_id=entity.pk, content_type=entity.content_type
-        ).delete()
-        cls.update_stats_after_unflag(
-            entity.author.pk,
-            entity.pk,
-            has_no_historical_flags,
-            entity_type=entity.type,
-        )
-
+        entity.unflag_all_abuse()
         return entity.to_dict()
 
     @classmethod
@@ -216,31 +170,7 @@ class MySQLBackend(AbstractBackend):
         if not content:
             raise ValueError("Entity doesn't exist.")
 
-        votes = content.votes
-        user_vote = votes.filter(user__pk=user.pk).first()
-        if not is_deleted:
-            if vote_type not in ["up", "down"]:
-                raise ValueError("Invalid vote_type, use ('up' or 'down')")
-            if not user_vote:
-                vote = 1 if vote_type == "up" else -1
-                user_vote = UserVote.objects.create(
-                    user=user,
-                    content=content,
-                    vote=vote,
-                    content_type=content.content_type,
-                )
-            if vote_type == "up":
-                user_vote.vote = 1
-            else:
-                user_vote.vote = -1
-            user_vote.save()
-            return True
-        else:
-            if user_vote:
-                user_vote.delete()
-                return True
-
-        return False
+        return content.update_vote(user, vote_type, is_deleted)
 
     @classmethod
     def upvote_content(cls, entity_id: str, user_id: str, **kwargs: Any) -> bool:
@@ -1446,12 +1376,12 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def get_comments(**kwargs: Any) -> list[dict[str, Any]]:
         """Return comments from kwargs."""
-        return Comment.get_list(**kwargs)
+        return list(Comment.objects.filter(**kwargs).values())
 
     @staticmethod
     def get_comments_count(**kwargs: Any) -> int:
         """Return comments from kwargs."""
-        return Comment.get_list_total_count(**kwargs)
+        return Comment.objects.filter(**kwargs).count()
 
     @staticmethod
     def update_child_count_in_parent_comment(parent_id: str, count: int) -> None:
@@ -1631,24 +1561,6 @@ class MySQLBackend(AbstractBackend):
                 reason_code=kwargs.get("edit_reason_code"),
                 created_at=timezone.now(),
             )
-
-        if "votes" in kwargs:
-            up_votes = kwargs["votes"].get("up", [])
-            down_votes = kwargs["votes"].get("down", [])
-            for user_id in up_votes:
-                UserVote.objects.update_or_create(
-                    user=User.objects.get(id=int(user_id)),
-                    content_type=comment.content_type,
-                    content_object_id=comment.pk,
-                    vote=1,
-                )
-            for user_id in down_votes:
-                UserVote.objects.update_or_create(
-                    user=User.objects.get(id=int(user_id)),
-                    content_type=comment.content_type,
-                    content_object_id=comment.pk,
-                    vote=-1,
-                )
 
         if "votes" in kwargs:
             up_votes = kwargs["votes"].get("up", [])
@@ -2014,7 +1926,7 @@ class MySQLBackend(AbstractBackend):
             if endorsement_user_id:
                 comment.endorsement = {
                     "user_id": endorsement_user_id,
-                    "time": str(timezone.now()),
+                    "time": timezone.now(),
                 }
 
         if editing_user_id:

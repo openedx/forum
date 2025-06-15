@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from forum.serializers.custom_datetime import CustomDateTimeField
 from forum.serializers.votes import VoteSummarySerializer
+from forum.backends.mysql.models import CourseStat, ReadState, LastReadTime
 
 
 class EditHistorySerializer(serializers.Serializer[dict[str, Any]]):
@@ -84,3 +85,43 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
     def update(self, instance: Any, validated_data: dict[str, Any]) -> Any:
         """Raise NotImplementedError"""
         raise NotImplementedError
+
+
+class CourseStatSerializer(serializers.ModelSerializer):
+    """Serializer for course statistics."""
+
+    class Meta:
+        model = CourseStat
+        fields = (
+            'id',
+            'course_id',
+            'active_flags',
+            'inactive_flags',
+            'threads',
+            'responses',
+            'replies',
+            'last_activity_at',
+        )
+
+
+class LastReadTimeSerializer(serializers.ModelSerializer):
+    """Serializer for last read time."""
+
+    class Meta:
+        model = LastReadTime
+        fields = ('id', 'read_state', 'comment_thread', 'timestamp')
+        read_only_fields = ('id',)
+
+
+class ReadStateSerializer(serializers.ModelSerializer):
+    """Serializer for read state."""
+
+    last_read_times = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReadState
+        fields = ('id', 'course_id', 'user', 'last_read_times')
+        read_only_fields = ('id',)
+
+    def get_last_read_times(self, obj):
+        return LastReadTimeSerializer(obj.last_read_times.all(), many=True).data

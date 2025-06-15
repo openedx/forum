@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 
 from forum.utils import validate_upvote_or_downvote
 
+
 class ForumUser(models.Model):
     """Forum user model."""
 

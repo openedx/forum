@@ -1,7 +1,7 @@
 """Users Serializers class."""
 
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User  # pylint: disable=E5142
 from forum.serializers.contents import CourseStatSerializer, ReadStateSerializer
 from forum.backends.mysql.models import ForumUser
 
@@ -27,6 +27,7 @@ class ForumUserSerializer(serializers.ModelSerializer):
         fields = ('user', 'default_sort_key', 'course_stats', 'read_states')
 
     def get_course_stats(self, obj):
+        """Get the course stats for the forum user."""
         course_id = self.context.get('course_id')
         if course_id:
             course_stat = obj.user.course_stats.filter(course_id=course_id).first()

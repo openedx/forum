@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from forum.serializers.contents import CourseStatSerializer
+from forum.serializers.contents import CourseStatSerializer, ReadStateSerializer
 from forum.backends.mysql.models import ForumUser
 
 
@@ -34,5 +34,5 @@ class ForumUserSerializer(serializers.ModelSerializer):
         return CourseStatSerializer(obj.user.course_stats.all(), many=True).data
 
     def get_read_states(self, obj):
-        from forum.serializers.contents import ReadStateSerializer
+        """Get the read states for the forum user."""
         return ReadStateSerializer(obj.user.read_states.all(), many=True).data

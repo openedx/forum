@@ -12,11 +12,8 @@ from django.db import models
 from django.db.models import QuerySet, F
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import ValidationError
 
 from forum.utils import validate_upvote_or_downvote
-from forum.constants import RETIRED_BODY, RETIRED_TITLE
-
 
 class ForumUser(models.Model):
     """Forum user model."""
@@ -65,7 +62,7 @@ class ForumUser(models.Model):
         """Find or create a forum user."""
         try:
             user = User.objects.get(pk=user_id)
-            forum_user, created = cls.objects.get_or_create(
+            cls.objects.get_or_create(
                 user=user,
                 defaults={"default_sort_key": default_sort_key or "date"}
             )
@@ -97,7 +94,7 @@ class CourseStat(models.Model):
     def find_or_create(cls, user_id: str, course_id: str) -> dict[str, Any]:
         """Find or create course stats for a user."""
         user = User.objects.get(pk=user_id)
-        course_stat, created = cls.objects.get_or_create(
+        course_stat, _ = cls.objects.get_or_create(
             user=user,
             course_id=course_id,
             defaults={
@@ -114,7 +111,7 @@ class CourseStat(models.Model):
     def update_stats(cls, user_id: str, course_id: str, **kwargs: Any) -> None:
         """Update stats for a course."""
         user = User.objects.get(pk=user_id)
-        course_stat, created = cls.objects.get_or_create(
+        course_stat, _ = cls.objects.get_or_create(
             user=user,
             course_id=course_id,
             defaults={
@@ -158,7 +155,7 @@ class CourseStat(models.Model):
             ContentType.objects.get_for_model(CommentThread),
             ContentType.objects.get_for_model(Comment)
         ]
-        
+
         active_flags = AbuseFlagger.objects.filter(
             content_type__in=content_types,
             content__author=user,
@@ -331,7 +328,7 @@ class Content(models.Model):
         historical_abuse_flaggers = list(
             set(self.historical_abuse_flaggers) | set(self.abuse_flaggers)
         )
-        
+
         # Create historical records
         for flagger_id in historical_abuse_flaggers:
             if not HistoricalAbuseFlagger.objects.filter(
@@ -344,13 +341,13 @@ class Content(models.Model):
                     user_id=flagger_id,
                     flagged_at=timezone.now(),
                 )
-        
+
         # Delete current flags
         AbuseFlagger.objects.filter(
             content_object_id=self.pk,
             content_type=self.content_type
         ).delete()
-        
+
         self._update_stats_after_unflag(has_no_historical_flags)
 
     def _update_stats_after_unflag(self, has_no_historical_flags: bool) -> None:
@@ -462,8 +459,8 @@ class CommentThread(Content):
         """Get a thread by ID."""
         try:
             return cls.objects.get(pk=thread_id)
-        except cls.DoesNotExist:
-            raise ValueError("Thread not found")
+        except cls.DoesNotExist as exc:
+            raise ValueError("Thread not found") from exc
 
     def pin(self) -> None:
         """Pin the thread."""
@@ -502,7 +499,6 @@ class CommentThread(Content):
         thread_type: Optional[str] = None,
         author_id: Optional[str] = None,
         flagged: bool = False,
-        unread: bool = False,
         unanswered: bool = False,
         unresponded: bool = False,
     ) -> QuerySet[CommentThread]:
@@ -654,8 +650,8 @@ class Comment(Content):
         """Get a comment by ID."""
         try:
             return cls.objects.get(pk=comment_id)
-        except cls.DoesNotExist:
-            raise ValueError("Comment not found")
+        except cls.DoesNotExist as exc:
+            raise ValueError("Comment not found") from exc
 
     def update_child_count(self, increment: int = 1) -> None:
         """Update child count."""
@@ -690,21 +686,21 @@ class Comment(Content):
     ) -> dict[str, Any]:
         """Get paginated comments for a thread."""
         queryset = cls.objects.filter(comment_thread_id=thread_id)
-        
+
         if not with_responses:
             queryset = queryset.filter(parent__isnull=True)
-            
+
         total = queryset.count()
-        
+
         # Sort by sort_key
         order_by = "sort_key" if sort_order == "asc" else "-sort_key"
         queryset = queryset.order_by(order_by)
-        
+
         # Paginate
         start = (page - 1) * per_page
         end = start + per_page
         comments = queryset[start:end]
-        
+
         return {
             "collection": [comment.to_dict() for comment in comments],
             "page": page,
@@ -905,7 +901,7 @@ class ReadState(models.Model):
         """Get read states for threads."""
         user = User.objects.get(pk=user_id)
         read_state = cls.objects.filter(user=user, course_id=course_id).first()
-        
+
         if not read_state:
             return {
                 "read": [],
@@ -927,7 +923,7 @@ class ReadState(models.Model):
                 (lrt for lrt in last_read_times if str(lrt.comment_thread.pk) == thread_id),
                 None
             )
-            
+
             if last_read:
                 read_thread_ids.append(thread_id)
                 last_read_times_dict[thread_id] = last_read.timestamp.isoformat()

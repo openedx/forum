@@ -56,6 +56,7 @@ def test_migrate_users(patched_mongodb: Database[Any]) -> None:
         }
     )
 
+    User.objects.create(id=1, username="testuser")
     call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
 
     user = User.objects.get(pk=1)
@@ -537,3 +538,169 @@ def test_get_trunc_title() -> None:
     # Test case 4: Empty title
     title_empty = ""
     assert get_trunc_title(title_empty) == title_empty
+
+
+# Additional test to validate skipping missing users during migration
+def test_skip_missing_user_in_migration(patched_mongodb: Database[Any]) -> None:
+    """Ensure missing users are skipped gracefully during migration."""
+    comment_thread_id = ObjectId()
+    comment_id = ObjectId()
+
+    # No user is inserted here; author_id refers to a non-existent user.
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id,
+                "_type": "CommentThread",
+                "author_id": "999",  # Non-existent user
+                "course_id": "test_course",
+                "title": "Missing Author Thread",
+                "body": "Thread with no valid author",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": ["999"], "down": []},
+                "abuse_flaggers": ["999"],
+                "historical_abuse_flaggers": ["999"],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id,
+                "_type": "Comment",
+                "author_id": "999",  # Non-existent user
+                "course_id": "test_course",
+                "body": "Comment with no valid author",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id,
+                "votes": {"up": [], "down": ["999"]},
+                "abuse_flaggers": ["999"],
+                "historical_abuse_flaggers": ["999"],
+                "depth": 0,
+                "sk": f"{comment_id}",
+            },
+        ]
+    )
+    patched_mongodb.subscriptions.insert_one(
+        {
+            "subscriber_id": "999",  # Non-existent user
+            "source_id": str(comment_thread_id),
+            "source_type": "CommentThread",
+            "source": {"course_id": "test_course"},
+            "created_at": timezone.now(),
+            "updated_at": timezone.now(),
+        }
+    )
+
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    # Ensure no thread/comment/subscription is created due to missing user
+    assert not MongoContent.objects.exists()
+    assert not CommentThread.objects.exists()
+    assert not Comment.objects.exists()
+    assert not Subscription.objects.exists()
+    assert not UserVote.objects.exists()
+
+
+def test_partial_user_existence_migration(patched_mongodb: Database[Any]) -> None:
+    """Ensure that content for valid users is migrated and invalid user content is skipped."""
+    comment_thread_id_valid = ObjectId()
+    comment_thread_id_invalid = ObjectId()
+    comment_id_valid = ObjectId()
+    comment_id_invalid = ObjectId()
+
+    patched_mongodb.users.insert_one(
+        {
+            "_id": "100",
+            "username": "validuser",
+            "default_sort_key": "date",
+            "course_stats": [
+                {
+                    "course_id": "test_course",
+                    "active_flags": 1,
+                    "inactive_flags": 1,
+                    "threads": 1,
+                    "responses": 1,
+                    "replies": 1,
+                    "last_activity_at": timezone.now(),
+                }
+            ],
+        }
+    )
+
+    User.objects.create(id=100, username="validuser")
+
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id_valid,
+                "_type": "CommentThread",
+                "author_id": "100",  # valid user
+                "course_id": "test_course",
+                "title": "Valid Thread",
+                "body": "Thread with valid author",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": ["100"], "down": []},
+                "abuse_flaggers": ["100"],
+                "historical_abuse_flaggers": ["100"],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id_valid,
+                "_type": "Comment",
+                "author_id": "100",  # valid user
+                "course_id": "test_course",
+                "body": "Valid comment",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id_valid,
+                "votes": {"up": [], "down": ["100"]},
+                "abuse_flaggers": ["100"],
+                "historical_abuse_flaggers": ["100"],
+                "depth": 0,
+                "sk": f"{comment_id_valid}",
+            },
+            {
+                "_id": comment_thread_id_invalid,
+                "_type": "CommentThread",
+                "author_id": "999",  # invalid user
+                "course_id": "test_course",
+                "title": "Invalid Thread",
+                "body": "Thread with invalid author",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": ["999"], "down": []},
+                "abuse_flaggers": ["999"],
+                "historical_abuse_flaggers": ["999"],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id_invalid,
+                "_type": "Comment",
+                "author_id": "999",  # invalid user
+                "course_id": "test_course",
+                "body": "Invalid comment",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id_invalid,
+                "votes": {"up": [], "down": ["999"]},
+                "abuse_flaggers": ["999"],
+                "historical_abuse_flaggers": ["999"],
+                "depth": 0,
+                "sk": f"{comment_id_invalid}",
+            },
+        ]
+    )
+
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    # Validate valid content is migrated
+    assert MongoContent.objects.filter(mongo_id=comment_thread_id_valid).exists()
+    assert MongoContent.objects.filter(mongo_id=comment_id_valid).exists()
+    assert CommentThread.objects.exists()
+    assert Comment.objects.exists()
+    assert UserVote.objects.exists()
+
+    # Validate invalid content is skipped
+    assert not MongoContent.objects.filter(mongo_id=comment_thread_id_invalid).exists()
+    assert not MongoContent.objects.filter(mongo_id=comment_id_invalid).exists()

@@ -13,6 +13,7 @@ def is_mysql_backend_enabled(course_id: str | None) -> bool:
     try:
         # pylint: disable=import-outside-toplevel
         from forum.toggles import ENABLE_MYSQL_BACKEND
+        from opaque_keys import InvalidKeyError
         from opaque_keys.edx.keys import CourseKey
     except ImportError:
         return True
@@ -21,7 +22,10 @@ def is_mysql_backend_enabled(course_id: str | None) -> bool:
     if isinstance(course_id, CourseKey):
         course_key = course_id  # type: ignore[unreachable]
     elif isinstance(course_id, str):
-        course_key = CourseKey.from_string(course_id)
+        try:
+            course_key = CourseKey.from_string(course_id)
+        except InvalidKeyError:
+            pass
 
     return ENABLE_MYSQL_BACKEND.is_enabled(course_key)
 

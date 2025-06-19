@@ -107,6 +107,9 @@ class Content(models.Model):
     group_id: models.PositiveIntegerField[int, int] = models.PositiveIntegerField(
         null=True
     )
+    user_group_ids: models.JSONField[list[int], list[int]] = models.JSONField(
+        null=True,
+    )
     created_at: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         auto_now_add=True
     )
@@ -294,6 +297,7 @@ class CommentThread(Content):
             "last_activity_at": self.last_activity_at,
             "edit_history": edit_history,
             "group_id": self.group_id,
+            "user_group_ids": self.user_group_ids,
         }
 
     def doc_to_hash(self) -> dict[str, Any]:

@@ -43,7 +43,6 @@ from forum.backends.mysql.models import (
 from forum.constants import RETIRED_BODY, RETIRED_TITLE
 from forum.utils import get_group_ids_from_params
 
-
 class MySQLBackend(AbstractBackend):
     """MySQL backend api."""
 
@@ -606,6 +605,7 @@ class MySQLBackend(AbstractBackend):
         per_page: int,
         context: str = "course",
         raw_query: bool = False,
+        **kwargs: Any,  # We use kwargs for not modifying the function signature
     ) -> dict[str, Any]:
         """
         Handles complex thread queries based on various filters and returns paginated results.
@@ -657,6 +657,13 @@ class MySQLBackend(AbstractBackend):
             base_query = base_query.filter(
                 Q(group_id__in=group_ids) | Q(group_id__isnull=True)
             )
+
+        # User group filtering
+        if kwargs.get("user_group_ids"):
+            user_groups_filter = Q(user_group_ids__isnull=True)
+            for group_id in kwargs.get("user_group_ids"):
+                user_groups_filter |= Q(user_group_ids__contains=group_id)
+            base_query = base_query.filter(user_groups_filter)
 
         # Author filtering
         if author_id:
@@ -1018,6 +1025,7 @@ class MySQLBackend(AbstractBackend):
             "commentable_ids",
             "group_id",
             "group_ids",
+            "user_group_ids",
         ]
         if not user_id:
             valid_params.append("user_id")
@@ -1071,6 +1079,7 @@ class MySQLBackend(AbstractBackend):
             params.get("sort_key", ""),
             int(params.get("page", 1)),
             int(params.get("per_page", 100)),
+            user_group_ids=params.get("user_group_ids"),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,
@@ -1753,6 +1762,8 @@ class MySQLBackend(AbstractBackend):
         optional_args = {}
         if group_id := data.get("group_id"):
             optional_args["group_id"] = group_id
+        if user_group_ids := data.get("user_group_ids"):
+            optional_args["user_group_ids"] = user_group_ids
         new_thread = CommentThread.objects.create(
             title=data["title"],
             body=data["body"],

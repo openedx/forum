@@ -752,3 +752,46 @@ class MongoContent(models.Model):
 
     class Meta:
         app_label = "forum"
+
+
+class Commentable:
+    """Utility class for commentable-related queries (not a DB model)."""
+
+    @staticmethod
+    def get_counts_based_on_type(course_id: str) -> dict[str, Any]:
+        """
+        Get the counts of discussion and question threads for a given course.
+
+        Args:
+            course_id (str): The ID of the course.
+
+        Returns:
+            dict: A dictionary with commentable IDs as keys and counts of discussion and question threads as values.
+        """
+        result = (
+            CommentThread.objects.filter(course_id=course_id)
+            .values("commentable_id")
+            .annotate(
+                discussion_count=models.Count(
+                    models.Case(
+                        models.When(thread_type="discussion", then=1),
+                        output_field=models.IntegerField(),
+                    )
+                ),
+                question_count=models.Count(
+                    models.Case(
+                        models.When(thread_type="question", then=1),
+                        output_field=models.IntegerField(),
+                    )
+                ),
+            )
+            .order_by()
+        )
+        commentable_counts = {}
+        for commentable in result:
+            topic_id = commentable["commentable_id"]
+            commentable_counts[topic_id] = {
+                "discussion": commentable["discussion_count"],
+                "question": commentable["question_count"],
+            }
+        return commentable_counts

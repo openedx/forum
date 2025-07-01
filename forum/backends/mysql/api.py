@@ -11,7 +11,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import (
     Count,
-    Case,
     Exists,
     F,
     IntegerField,
@@ -19,7 +18,6 @@ from django.db.models import (
     OuterRef,
     Q,
     Subquery,
-    When,
     Sum,
 )
 from django.utils import timezone
@@ -39,6 +37,7 @@ from forum.backends.mysql.models import (
     ReadState,
     Subscription,
     UserVote,
+    Commentable,
 )
 from forum.constants import RETIRED_BODY, RETIRED_TITLE
 from forum.utils import get_group_ids_from_params
@@ -1515,33 +1514,7 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def get_commentables_counts_based_on_type(course_id: str) -> dict[str, Any]:
         """Return commentables counts in a course based on thread's type."""
-        result = (
-            CommentThread.objects.filter(course_id=course_id)
-            .values("commentable_id")
-            .annotate(
-                discussion_count=Count(
-                    Case(
-                        When(thread_type="discussion", then=1),
-                        output_field=IntegerField(),
-                    )
-                ),
-                question_count=Count(
-                    Case(
-                        When(thread_type="question", then=1),
-                        output_field=IntegerField(),
-                    )
-                ),
-            )
-            .order_by()
-        )
-        commentable_counts = {}
-        for commentable in result:
-            topic_id = commentable["commentable_id"]
-            commentable_counts[topic_id] = {
-                "discussion": commentable["discussion_count"],
-                "question": commentable["question_count"],
-            }
-        return commentable_counts
+        return Commentable.get_counts_based_on_type(course_id)
 
     @staticmethod
     def update_comment(comment_id: str, **kwargs: Any) -> int:

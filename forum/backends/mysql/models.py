@@ -682,6 +682,43 @@ class UserVote(models.Model):
         validators=[validate_upvote_or_downvote]
     )
 
+    @staticmethod
+    def update_vote(
+        content: Content, user: User, vote_type: str = "", is_deleted: bool = False
+    ) -> bool:
+        """
+        Update a vote on a thread or comment (either upvote or downvote).
+        :param content: The content instance (thread or comment).
+        :param user: The user instance.
+        :param vote_type: String indicating the type of vote ('up' or 'down').
+        :param is_deleted: Boolean indicating if the user is removing their vote (True) or voting (False).
+        :return: True if the vote was successfully updated, False otherwise.
+        """
+        votes = content.votes
+        user_vote = votes.filter(user__pk=user.pk).first()
+        if not is_deleted:
+            if vote_type not in ["up", "down"]:
+                raise ValueError("Invalid vote_type, use ('up' or 'down')")
+            if not user_vote:
+                vote = 1 if vote_type == "up" else -1
+                user_vote = UserVote.objects.create(
+                    user=user,
+                    content=content,
+                    vote=vote,
+                    content_type=content.content_type,
+                )
+            if vote_type == "up":
+                user_vote.vote = 1
+            else:
+                user_vote.vote = -1
+            user_vote.save()
+            return True
+        else:
+            if user_vote:
+                user_vote.delete()
+                return True
+        return False
+
     class Meta:
         app_label = "forum"
         unique_together = ("user", "content_type", "content_object_id")

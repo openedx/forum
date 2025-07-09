@@ -31,6 +31,7 @@ from forum.backends.mysql.models import (
     AbuseFlagger,
     Comment,
     CommentThread,
+    Content,
     CourseStat,
     EditHistory,
     ForumUser,
@@ -75,13 +76,7 @@ class MySQLBackend(AbstractBackend):
         entity_id: str, entity_type: str
     ) -> Union[Comment, CommentThread, None]:
         """Get entity from type."""
-        try:
-            if entity_type == "Comment":
-                return Comment.objects.get(pk=entity_id)
-            else:
-                return CommentThread.objects.get(pk=entity_id)
-        except ObjectDoesNotExist:
-            return None
+        return Content.get_entity_from_type(entity_id, entity_type)
 
     @classmethod
     def flag_as_abuse(
@@ -923,70 +918,31 @@ class MySQLBackend(AbstractBackend):
         Returns:
             list: A list of thread ids that the user is subscribed to in the course.
         """
-        subscriptions = Subscription.objects.filter(
-            subscriber__pk=user_id,
-            source_content_type=ContentType.objects.get_for_model(CommentThread),
-        )
-        thread_ids = [
-            str(subscription.source_object_id) for subscription in subscriptions
-        ]
-        if course_id:
-            thread_ids = list(
-                CommentThread.objects.filter(
-                    pk__in=thread_ids,
-                    course_id=course_id,
-                ).values_list("pk", flat=True)
-            )
-
-        return thread_ids
+        return Subscription.find_subscribed_threads(user_id, course_id)
 
     @classmethod
     def subscribe_user(
         cls, user_id: str, source_id: str, source_type: str
     ) -> dict[str, Any] | None:
         """Subscribe a user to a source."""
-        source = cls._get_entity_from_type(source_id, source_type)
-        if source is None:
-            return None
-
-        subscription, _ = Subscription.objects.get_or_create(
-            subscriber=User.objects.get(pk=int(user_id)),
-            source_object_id=source.pk,
-            source_content_type=source.content_type,
-        )
-        return subscription.to_dict()
+        return Subscription.subscribe_user(user_id, source_id, source_type)
 
     @classmethod
     def unsubscribe_user(
         cls, user_id: str, source_id: str, source_type: Optional[str] = ""
     ) -> None:
         """Unsubscribe a user from a source."""
-        source = cls._get_entity_from_type(source_id, source_type or "")
-        if source is None:
-            return
+        Subscription.unsubscribe_user(user_id, source_id, source_type or "")
 
-        Subscription.objects.filter(
-            subscriber=User.objects.get(pk=int(user_id)),
-            source_object_id=source.pk,
-            source_content_type=source.content_type,
-        ).delete()
+    @classmethod
+    def delete_subscriptions_of_a_thread(cls, thread_id: str) -> None:
+        """Delete subscriptions of a thread."""
+        Subscription.delete_subscriptions_of_a_thread(thread_id)
 
     @staticmethod
     def delete_comments_of_a_thread(thread_id: str) -> None:
         """Delete comments of a thread."""
         Comment.objects.filter(comment_thread__pk=thread_id, parent=None).delete()
-
-    @classmethod
-    def delete_subscriptions_of_a_thread(cls, thread_id: str) -> None:
-        """Delete subscriptions of a thread."""
-        source = cls._get_entity_from_type(thread_id, "CommentThread")
-        if source is None:
-            return
-
-        Subscription.objects.filter(
-            source_object_id=source.pk,
-            source_content_type=source.content_type,
-        ).delete()
 
     @staticmethod
     def validate_params(
@@ -1204,7 +1160,7 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def unsubscribe_all(user_id: str) -> None:
         """Unsubscribe user from all content."""
-        Subscription.objects.filter(subscriber__pk=user_id).delete()
+        Subscription.unsubscribe_all(user_id)
 
     # Kept method signature same as mongo implementation
     @staticmethod
@@ -1702,40 +1658,14 @@ class MySQLBackend(AbstractBackend):
         cls, subscriber_id: str, source_id: str, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Return subscription from subscriber_id and source_id."""
-        source = cls._get_entity_from_type(
-            source_id, entity_type=kwargs.get("source_type", "")
+        return Subscription.get_subscription(
+            subscriber_id, source_id, kwargs.get("source_type", "")
         )
-        if not source:
-            return None
-        try:
-            subscription = Subscription.objects.get(
-                subscriber_id=User.objects.get(pk=int(subscriber_id)),
-                source_object_id=source.pk,
-                source_content_type=source.content_type,
-            )
-        except Subscription.DoesNotExist:
-            return None
-        return subscription.to_dict()
 
     @classmethod
     def get_subscriptions(cls, query: dict[str, Any]) -> list[dict[str, Any]]:
         """Return subscriptions from filter."""
-        source = cls._get_entity_from_type(
-            entity_id=query["source_id"], entity_type=query.get("source_type", "")
-        )
-        if not source:
-            return []
-
-        subscriptions = (
-            Subscription.objects.filter(
-                source_object_id=source.pk,
-                source_content_type=source.content_type,
-            )
-            .distinct()
-            .order_by("subscriber_id", "source_object_id")
-        )
-
-        return [subscription.to_dict() for subscription in subscriptions]
+        return Subscription.get_subscriptions(query)
 
     @staticmethod
     def delete_thread(thread_id: str) -> int:

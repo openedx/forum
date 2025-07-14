@@ -206,7 +206,7 @@ class UserCourseStatsAPIView(APIView):
 
     permission_classes = (AllowAny,)
 
-    def get(self, request: Request, course_id: str) -> Response:
+    def get(self, request: Request, course_id: str) -> Response:  # pylint: disable=W0613
         """Get user course stats."""
         params: dict[str, Any] = request.GET.dict()
         if page := params.get("page"):

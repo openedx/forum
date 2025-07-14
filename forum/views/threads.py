@@ -31,7 +31,7 @@ class ThreadsAPIView(APIView):
 
     permission_classes = (AllowAny,)
 
-    def get(self, request: Request, thread_id: str) -> Response:
+    def get(self, request: Request, thread_id: str) -> Response:  # pylint: disable=W0613
         """
         Retrieve a thread by its ID.
 

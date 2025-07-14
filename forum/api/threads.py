@@ -37,7 +37,7 @@ def _get_thread_data_from_request_data(data: dict[str, Any]) -> dict[str, Any]:
     result = {field: data.get(field) for field in fields if data.get(field) is not None}
 
     # Handle special cases
-    if "user_id" in data:
+    if "user_id" in data and data["user_id"] is not None:
         result["author_id"] = data["user_id"]
     if "editing_user_id" in data:
         result["editing_user_id"] = data["editing_user_id"]
@@ -252,8 +252,14 @@ def update_thread(
             raise ForumV2RequestError(
                 f"Missing required fields: {', '.join(missing_fields)}"
             )
+    elif update_thread_data.get("closed") is False:
+        # When reopening a thread, clear the close-related fields
+        update_thread_data["close_reason_code"] = None
+        update_thread_data["closed_by_id"] = None
     backend.update_thread(thread_id, **update_thread_data)
     thread = backend.get_thread(thread_id)
+    if not thread:
+        raise ForumV2RequestError(f"Thread not found with ID: {thread_id}")
 
     try:
         return prepare_thread_api_response(
@@ -346,7 +352,7 @@ def get_user_threads(
     user_id: Optional[str] = None,
     group_id: Optional[int] = None,
     group_ids: Optional[int] = None,
-    **kwargs: Any,
+    **kwargs: Any,  # pylint: disable=W0613
 ) -> dict[str, Any]:
     """
     Get the threads for the given thread_ids.
@@ -372,8 +378,8 @@ def get_user_threads(
     params = {k: v for k, v in params.items() if v is not None}
     backend.validate_params(params)
 
-    thread_filter = backend.get_user_thread_filter(course_id)
-    filtered_threads = backend.get_filtered_threads(thread_filter)
+    thread_query = {"course_id": course_id}
+    filtered_threads = backend.get_filtered_threads(thread_query)
     thread_ids = [thread["_id"] for thread in filtered_threads]
     threads = backend.get_threads(params, user_id or "", ThreadSerializer, thread_ids)
 
@@ -384,4 +390,7 @@ def get_course_id_by_thread(thread_id: str) -> str | None:
     """
     Return course_id for the matching thread.
     """
-    return backend.get_course_id_by_thread_id(thread_id)
+    thread = backend.get_thread(thread_id)
+    if thread:
+        return thread.get("course_id")
+    return None

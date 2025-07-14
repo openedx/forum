@@ -16,7 +16,7 @@ class CommentablesCountAPIView(APIView):
 
     permission_classes = (AllowAny,)
 
-    def get(self, request: Request, course_id: str) -> Response:
+    def get(self, request: Request, course_id: str) -> Response:  # pylint: disable=W0613
         """
         Retrieves a the threads count based on thread_type.
 

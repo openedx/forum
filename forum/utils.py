@@ -174,7 +174,6 @@ def get_group_ids_from_params(params: dict[str, Any]) -> list[int]:
     """
     if "group_id" in params and "group_ids" in params:
         raise ValueError("Cannot specify both group_id and group_ids")
-    group_ids: str | list[str] = []
     if group_id := params.get("group_id"):
         return [int(group_id)]
     elif group_ids := params.get("group_ids", []):
@@ -182,7 +181,7 @@ def get_group_ids_from_params(params: dict[str, Any]) -> list[int]:
             return [int(x) for x in group_ids.split(",")]
         elif isinstance(group_ids, list):
             return [int(x) for x in group_ids]
-    return group_ids
+    return []
 
 
 def get_commentable_ids_from_params(params: dict[str, Any]) -> list[str]:

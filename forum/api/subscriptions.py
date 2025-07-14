@@ -7,6 +7,8 @@ from typing import Any, Optional
 from django.http import QueryDict
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
+from django.contrib.contenttypes.models import ContentType
+from forum.backends.mysql.models import CommentThread
 
 from forum.backends.mysql.api import MySQLBackend as backend
 from forum.pagination import ForumPagination
@@ -120,7 +122,9 @@ def get_thread_subscriptions(
     Returns:
         dict: A dictionary containing the paginated subscription data.
     """
-    query = {"source_id": thread_id, "source_type": "CommentThread"}
+    # Get the ContentType for CommentThread
+    comment_thread_content_type = ContentType.objects.get_for_model(CommentThread)
+    query = {"source_object_id": thread_id, "source_content_type": comment_thread_content_type}
     subscriptions_list = list(backend.get_subscriptions(query))
 
     factory = APIRequestFactory()

@@ -40,7 +40,7 @@ def handle_comment_deletion(sender: Any, **kwargs: dict[str, Any]) -> None:
     search_backend.delete_document(sender.index_name, comment_id)
 
 
-def handle_comment_thread_insertion(sender: Any, **kwargs: dict[str, Any]) -> None:
+def handle_comment_thread_insertion(sender: Any, **kwargs: dict[str, Any]) -> None:  # pylint: disable=W0613
     """
     Handle the insertion of a comment thread into the Elasticsearch index.
 
@@ -55,7 +55,7 @@ def handle_comment_thread_insertion(sender: Any, **kwargs: dict[str, Any]) -> No
     log.info(f"Thread {thread_id} added to Elasticsearch index")
 
 
-def handle_comment_insertion(sender: Any, **kwargs: dict[str, Any]) -> None:
+def handle_comment_insertion(sender: Any, **kwargs: dict[str, Any]) -> None:  # pylint: disable=W0613
     """
     Handle the insertion of a comment into the Elasticsearch index.
 

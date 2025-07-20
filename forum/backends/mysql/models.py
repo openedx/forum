@@ -800,6 +800,7 @@ class CommentThread(Content):
 
     @staticmethod
     def get_thread_id_from_comment(comment_id: str) -> dict[str, Any] | None:
+        """Get thread ID from a comment ID."""
         comment = Comment.objects.filter(pk=comment_id).first()
         if comment:
             return {"thread_id": str(comment.comment_thread.pk)}
@@ -1017,11 +1018,13 @@ class Comment(Content):
         ]
 
     @staticmethod
-    def update_comment(comment_id: str, **kwargs: Any) -> int:
+    def update_comment(comment_id: str, **kwargs) -> int:
+        """Update a comment with the given parameters."""
         return Comment.objects.filter(pk=comment_id).update(**kwargs)
 
     @staticmethod
     def get_thread_id_by_comment_id(parent_comment_id: str) -> str:
+        """Get thread ID from a parent comment ID."""
         comment = Comment.objects.filter(pk=parent_comment_id).first()
         if comment:
             return str(comment.comment_thread.pk)
@@ -1247,7 +1250,7 @@ class Subscription(models.Model):
         ]
 
     @staticmethod
-    def get_subscription(subscriber_id: str, source_id: str, **kwargs: Any) -> dict[str, Any] | None:  # pylint: disable=W0613
+    def get_subscription(subscriber_id: str, source_id: str, **kwargs) -> dict[str, Any] | None:  # pylint: disable=W0613
         sub = Subscription.objects.filter(subscriber__pk=subscriber_id, source_object_id=source_id).first()
         return sub.to_dict() if sub else None
 
@@ -1261,7 +1264,6 @@ class Subscription(models.Model):
         """
         Find threads that a user is subscribed to in a specific course.
         """
-        from .models import CommentThread
         subscriptions = Subscription.objects.filter(
             subscriber__pk=user_id,
             source_content_type=ContentType.objects.get_for_model(CommentThread),

@@ -4,7 +4,7 @@ import math
 import random
 from typing import Any, Optional, Union
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import (
@@ -45,6 +45,7 @@ class MySQLBackend(AbstractBackend):
         cls, user_id: str, course_id: str, **kwargs: Any
     ) -> None:
         """Update stats for a course."""
+        User = get_user_model()
         user = User.objects.get(pk=user_id)
         course_stat, created = CourseStat.objects.get_or_create(
             user=user, course_id=course_id
@@ -446,6 +447,7 @@ class MySQLBackend(AbstractBackend):
         if user_id == "":
             return read_states
         try:
+            User = get_user_model()
             user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return read_states

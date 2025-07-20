@@ -258,8 +258,6 @@ def update_thread(
         update_thread_data["closed_by_id"] = None
     backend.update_thread(thread_id, **update_thread_data)
     thread = backend.get_thread(thread_id)
-    if not thread:
-        raise ForumV2RequestError(f"Thread not found with ID: {thread_id}")
 
     try:
         return prepare_thread_api_response(

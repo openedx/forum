@@ -82,7 +82,7 @@ class MySQLBackend(AbstractBackend):
         cls, user_id: str, entity_id: str, **kwargs: Any
     ) -> dict[str, Any]:
         """Flag an entity as abuse."""
-        user = ForumUser.objects.get(user__pk=user_id)
+        user = ForumUser.objects.get(user__pk=user_id).user
         entity = cls._get_entity_from_type(
             entity_id, entity_type=kwargs.get("entity_type", "")
         )
@@ -105,7 +105,7 @@ class MySQLBackend(AbstractBackend):
         cls, user_id: str, entity_id: str, **kwargs: Any
     ) -> dict[str, Any]:
         """Unflag an entity as abuse."""
-        user = ForumUser.objects.get(user__pk=user_id)
+        user = ForumUser.objects.get(user__pk=user_id).user
         entity = cls._get_entity_from_type(
             entity_id, entity_type=kwargs.get("entity_type", "")
         )
@@ -203,7 +203,7 @@ class MySQLBackend(AbstractBackend):
         :param is_deleted: Boolean indicating if the user is removing their vote (True) or voting (False).
         :return: True if the vote was successfully updated, False otherwise.
         """
-        user = ForumUser.objects.get(user__pk=user_id)
+        user = ForumUser.objects.get(user__pk=user_id).user
         content = cls._get_entity_from_type(
             content_id, entity_type=kwargs.get("entity_type", "")
         )
@@ -545,7 +545,7 @@ class MySQLBackend(AbstractBackend):
         """
         user = ForumUser.objects.get(pk=int(user_id))
         try:
-            read_state = ReadState.objects.get(user=user, course_id=course_id)
+            read_state = ReadState.objects.get(user=user.user, course_id=course_id)
         except ObjectDoesNotExist:
             return {}
         return read_state.to_dict()
@@ -925,7 +925,7 @@ class MySQLBackend(AbstractBackend):
             return None
 
         subscription, _ = Subscription.objects.get_or_create(
-            subscriber=ForumUser.objects.get(pk=int(user_id)),
+            subscriber=ForumUser.objects.get(pk=int(user_id)).user,
             source_object_id=source.pk,
             source_content_type=source.content_type,
         )
@@ -941,7 +941,7 @@ class MySQLBackend(AbstractBackend):
             return
 
         Subscription.objects.filter(
-            subscriber=ForumUser.objects.get(pk=int(user_id)),
+            subscriber=ForumUser.objects.get(pk=int(user_id)).user,
             source_object_id=source.pk,
             source_content_type=source.content_type,
         ).delete()
@@ -1239,7 +1239,7 @@ class MySQLBackend(AbstractBackend):
             course_id=data.get("course_id"),
             anonymous=data.get("anonymous", False),
             anonymous_to_peers=data.get("anonymous_to_peers", False),
-            author=ForumUser.objects.get(pk=int(data["author_id"])),
+            author=ForumUser.objects.get(user__pk=int(data["author_id"])).user,
             comment_thread=comment_thread,
             parent=parent,
             depth=data.get("depth", 0),
@@ -1306,7 +1306,7 @@ class MySQLBackend(AbstractBackend):
         if course_id:
             comment.course_id = course_id
         if user_id:
-            comment.author = ForumUser.objects.get(pk=user_id)
+            comment.author = ForumUser.objects.get(pk=user_id).user
         if anonymous is not None:
             comment.anonymous = anonymous
         if anonymous_to_peers is not None:
@@ -1325,7 +1325,7 @@ class MySQLBackend(AbstractBackend):
             EditHistory.objects.create(
                 content_object_id=comment.pk,
                 content_type=comment.content_type,
-                editor=ForumUser.objects.get(pk=editing_user_id),
+                editor=ForumUser.objects.get(pk=editing_user_id).user,
                 original_body=original_body,
                 reason_code=edit_reason_code,
                 created_at=timezone.now(),
@@ -1480,7 +1480,7 @@ class MySQLBackend(AbstractBackend):
             EditHistory.objects.create(
                 content_object_id=thread.pk,
                 content_type=thread.content_type,
-                editor=ForumUser.objects.get(pk=editing_user_id),
+                editor=ForumUser.objects.get(pk=editing_user_id).user,
                 original_body=original_body_for_history,
                 reason_code=edit_reason_code,
                 created_at=timezone.now(),
@@ -1507,7 +1507,7 @@ class MySQLBackend(AbstractBackend):
             # Create new votes
             for user_id in votes.get('up', []):
                 UserVote.objects.create(
-                    user=ForumUser.objects.get(pk=user_id),
+                    user=ForumUser.objects.get(pk=user_id).user,
                     content_type=thread.content_type,
                     content_object_id=thread.pk,
                     vote=1  # upvote
@@ -1515,7 +1515,7 @@ class MySQLBackend(AbstractBackend):
 
             for user_id in votes.get('down', []):
                 UserVote.objects.create(
-                    user=ForumUser.objects.get(pk=user_id),
+                    user=ForumUser.objects.get(pk=user_id).user,
                     content_type=thread.content_type,
                     content_object_id=thread.pk,
                     vote=-1  # downvote
@@ -1576,7 +1576,7 @@ class MySQLBackend(AbstractBackend):
             # Create new votes
             for user_id in votes.get('up', []):
                 UserVote.objects.create(
-                    user=ForumUser.objects.get(pk=user_id),
+                    user=ForumUser.objects.get(pk=user_id).user,
                     content_type=comment.content_type,
                     content_object_id=comment.pk,
                     vote=1  # upvote
@@ -1584,7 +1584,7 @@ class MySQLBackend(AbstractBackend):
 
             for user_id in votes.get('down', []):
                 UserVote.objects.create(
-                    user=ForumUser.objects.get(pk=user_id),
+                    user=ForumUser.objects.get(pk=user_id).user,
                     content_type=comment.content_type,
                     content_object_id=comment.pk,
                     vote=-1  # downvote

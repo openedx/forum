@@ -215,32 +215,9 @@ class MySQLBackend(AbstractBackend):
         )
         if not content:
             raise ValueError("Entity doesn't exist.")
-
-        votes = content.votes
-        user_vote = votes.filter(user__pk=user.pk).first()
-        if not is_deleted:
-            if vote_type not in ["up", "down"]:
-                raise ValueError("Invalid vote_type, use ('up' or 'down')")
-            if not user_vote:
-                vote = 1 if vote_type == "up" else -1
-                user_vote = UserVote.objects.create(
-                    user=user,
-                    content=content,
-                    vote=vote,
-                    content_type=content.content_type,
-                )
-            if vote_type == "up":
-                user_vote.vote = 1
-            else:
-                user_vote.vote = -1
-            user_vote.save()
-            return True
-        else:
-            if user_vote:
-                user_vote.delete()
-                return True
-
-        return False
+        return UserVote.update_vote(
+            content, user, vote_type=vote_type, is_deleted=is_deleted
+        )
 
     @classmethod
     def upvote_content(cls, entity_id: str, user_id: str, **kwargs: Any) -> bool:

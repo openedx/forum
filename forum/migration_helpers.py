@@ -72,7 +72,7 @@ def migrate_users(db: Database[dict[str, Any]], course_id: str) -> None:
 
 def migrate_content(db: Database[dict[str, Any]], course_id: str) -> None:
     """Migrate content from MongoDB to MySQL."""
-    contents = db.contents.find({"course_id": course_id})
+    contents = db.contents.find({"course_id": course_id}).sort("created_at")
     for content in contents:
         if content["_type"] == "CommentThread":
             create_or_update_thread(content)

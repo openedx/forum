@@ -348,8 +348,9 @@ def test_handles_deleting_threads(
 
     user = backend.get_user_by_username(username)
     assert user is not None
+    assert isinstance(user, dict)
 
-    thread = backend.find_thread(author_id=user["_id"], course_id=course_id)
+    thread = backend.find_thread(author_id=user.get("_id"), course_id=course_id)
     assert thread is not None
 
     response = api_client.delete_json(f"/api/v2/threads/{str(thread['_id'])}")
@@ -373,8 +374,9 @@ def test_handles_updating_threads(
 
     user = backend.get_user_by_username(username)
     assert user is not None
+    assert isinstance(user, dict)
 
-    thread = backend.find_thread(author_id=user["_id"], course_id=course_id)
+    thread = backend.find_thread(author_id=user.get("_id"), course_id=course_id)
     assert thread is not None
 
     response = api_client.put_json(
@@ -433,9 +435,10 @@ def test_handles_deleting_responses(
 
     user = backend.get_user_by_username(username)
     assert user is not None
+    assert isinstance(user, dict)
 
     comment = backend.find_comment(
-        author_id=user["_id"], course_id=course_id, parent_id=None
+        author_id=user.get("_id"), course_id=course_id, parent_id=None
     )
     assert comment is not None
 
@@ -460,8 +463,9 @@ def test_handles_updating_responses(
 
     user = backend.get_user_by_username(username)
     assert user is not None
+    assert isinstance(user, dict)
 
-    comment = backend.find_comment(author_id=user["_id"], course_id=course_id)
+    comment = backend.find_comment(author_id=user.get("_id"), course_id=course_id)
     assert comment is not None
 
     response = api_client.put_json(
@@ -488,10 +492,11 @@ def test_handles_deleting_replies(
 
     user = backend.get_user_by_username(username)
     assert user is not None
+    assert isinstance(user, dict)
 
     # Find a reply (comment with a parent_id)
     reply = backend.find_comment(
-        author_id=user["_id"], course_id=course_id, is_parent_comment=False
+        author_id=user.get("_id"), course_id=course_id, is_parent_comment=False
     )
     assert reply is not None
 

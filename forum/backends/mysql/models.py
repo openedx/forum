@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Optional, Union
+from datetime import datetime, timedelta
+from typing import Any, Callable, Optional, Union
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.core.paginator import Paginator
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import Count, Max, Q, QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ObjectDoesNotExist
 
+from forum.constants import RETIRED_BODY, RETIRED_TITLE
 from forum.utils import validate_upvote_or_downvote
 
 
@@ -53,6 +55,350 @@ class ForumUser(models.Model):
             ),
             "read_states": [state.to_dict() for state in read_states],
         }
+
+    @classmethod
+    def get_by_user_id(cls, user_id: str) -> Optional["ForumUser"]:
+        """Return ForumUser instance from user_id."""
+        try:
+            return cls.objects.get(user__pk=int(user_id))
+        except ObjectDoesNotExist:
+            return None
+
+    @classmethod
+    def get_by_username(cls, username: str) -> Optional["ForumUser"]:
+        """Return ForumUser instance from username."""
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return None
+        try:
+            return cls.objects.get(user=user)
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def find_or_create_user(
+        cls,
+        user_id: str,
+        username: Optional[str] = None,
+        default_sort_key: Optional[str] = "date",
+    ) -> "ForumUser":
+        """Find or create a ForumUser and underlying User."""
+        username = username or user_id
+        try:
+            user = User.objects.get(pk=int(user_id))
+        except User.DoesNotExist:
+            user = None
+
+        if user is None:
+            if User.objects.filter(username=username).exists():
+                raise ValueError(f"User with username {username} already exists")
+            user = User.objects.create(pk=int(user_id), username=username)
+
+        forum_user, _ = cls.objects.get_or_create(
+            user=user, defaults={"default_sort_key": default_sort_key}
+        )
+        return forum_user
+
+    @classmethod
+    def update_user(cls, user_id: str, data: dict[str, Any]) -> int:
+        """Update User and ForumUser fields, and handle read_states."""
+        try:
+            user = User.objects.get(id=user_id)
+            forum_user = cls.objects.get(user=user)
+        except ObjectDoesNotExist:
+            return 0
+
+        if "username" in data:
+            user.username = data["username"]
+        if "email" in data:
+            user.email = data["email"]
+        if "default_sort_key" in data:
+            forum_user.default_sort_key = data["default_sort_key"]
+        if "read_states" in data:
+            # Remove all existing ReadState objects for this user
+            ReadState.objects.filter(user=user).delete()
+            # Insert new ReadState objects from data['read_states']
+            for state in data["read_states"]:
+                last_read_times = state.get("last_read_times", {})
+                for thread_id, dt in last_read_times.items():
+                    thread = CommentThread.objects.get(pk=thread_id)
+                    read_state, _ = ReadState.objects.get_or_create(
+                        user=user, course_id=thread.course_id
+                    )
+                    LastReadTime.objects.update_or_create(
+                        read_state=read_state,
+                        comment_thread=thread,
+                        defaults={"timestamp": dt},
+                    )
+        user.save()
+        forum_user.save()
+        return 1
+
+    @classmethod
+    def user_to_hash(
+        cls,
+        user_id: str,
+        params: Optional[dict[str, Any]] = None,
+        filter_standalone_threads: Optional[Callable[[list[str]], list[str]]] = None,
+        find_subscribed_threads: Optional[Callable[[str], list[str]]] = None,
+        get_user_voted_ids: Optional[Callable[[str, str], list[str]]] = None,
+    ) -> dict[str, Any]:
+        """Converts user data to a hash."""
+        user = User.objects.get(pk=user_id)
+        forum_user = cls.objects.get(user__pk=user_id)
+        if params is None:
+            params = {}
+
+        user_data = forum_user.to_dict()
+        hash_data = {}
+        hash_data["username"] = user_data["username"]
+        hash_data["external_id"] = user_data["external_id"]
+        hash_data["id"] = user_data["external_id"]
+
+        if params.get("complete"):
+            if find_subscribed_threads and get_user_voted_ids:
+                subscribed_thread_ids = find_subscribed_threads(user_id)
+                upvoted_ids = get_user_voted_ids(user_id, "up")
+                downvoted_ids = get_user_voted_ids(user_id, "down")
+            else:
+                subscribed_thread_ids = []
+                upvoted_ids = []
+                downvoted_ids = []
+            hash_data.update(
+                {
+                    "subscribed_thread_ids": subscribed_thread_ids,
+                    "subscribed_commentable_ids": [],
+                    "subscribed_user_ids": [],
+                    "follower_ids": [],
+                    "id": user_id,
+                    "upvoted_ids": upvoted_ids,
+                    "downvoted_ids": downvoted_ids,
+                    "default_sort_key": user_data["default_sort_key"],
+                }
+            )
+
+        if params.get("course_id"):
+            threads = CommentThread.objects.filter(
+                author=user,
+                course_id=params["course_id"],
+                anonymous=False,
+                anonymous_to_peers=False,
+            )
+            comments = Comment.objects.filter(
+                author=user,
+                course_id=params["course_id"],
+                anonymous=False,
+                anonymous_to_peers=False,
+            )
+            comment_ids = list(comments.values_list("pk", flat=True))
+            if params.get("group_ids") and filter_standalone_threads:
+                group_threads = threads.filter(
+                    group_id__in=params["group_ids"] + [None]
+                )
+                group_thread_ids = [str(thread.pk) for thread in group_threads]
+                threads_count = len(group_thread_ids)
+                comment_thread_ids = filter_standalone_threads(comment_ids)
+
+                group_comment_threads = CommentThread.objects.filter(
+                    id__in=comment_thread_ids, group_id__in=params["group_ids"] + [None]
+                )
+                group_comment_thread_ids = [
+                    str(thread.pk) for thread in group_comment_threads
+                ]
+                comments_count = sum(
+                    1
+                    for comment_thread_id in comment_thread_ids
+                    if comment_thread_id in group_comment_thread_ids
+                )
+            else:
+                thread_ids = [str(thread.pk) for thread in threads]
+                threads_count = len(thread_ids)
+                if filter_standalone_threads:
+                    comment_thread_ids = filter_standalone_threads(comment_ids)
+                    comments_count = len(comment_thread_ids)
+                else:
+                    comments_count = 0
+
+            hash_data.update(
+                {
+                    "threads_count": threads_count,
+                    "comments_count": comments_count,
+                }
+            )
+
+        return hash_data
+
+    @classmethod
+    def replace_username_in_all_content(cls, user_id: str, username: str) -> None:
+        """Replace the username of a Django user."""
+        try:
+            user = User.objects.get(pk=user_id)
+            user.username = username
+            user.save()
+        except User.DoesNotExist as exc:
+            raise ValueError("User does not exist") from exc
+
+    @classmethod
+    def unsubscribe_all(cls, user_id: str) -> None:
+        """Unsubscribe user from all content."""
+        Subscription.unsubscribe_all(user_id)
+
+    @classmethod
+    def retire_all_content(cls, user_id: str) -> None:
+        """Retire all content from user."""
+
+        comments = Comment.objects.filter(author__pk=user_id)
+        for comment in comments:
+            comment.body = RETIRED_BODY
+            comment.save()
+        comment_threads = CommentThread.objects.filter(author__pk=user_id)
+        for comment_thread in comment_threads:
+            comment_thread.body = RETIRED_BODY
+            comment_thread.title = RETIRED_TITLE
+            comment_thread.save()
+
+    @classmethod
+    def get_users(cls, **kwargs: Any) -> list[dict[str, Any]]:
+        """Retrieves a list of users in the database based on provided filters."""
+        forum_users = cls.objects.filter(**kwargs)
+        sort_key = kwargs.get("sort_key")
+        if sort_key:
+            forum_users = forum_users.order_by(sort_key)
+        return [user.to_dict() for user in forum_users]
+
+    @classmethod
+    def get_user_sort_criterion(cls, sort_by: str) -> dict[str, Any]:
+        """Get sort criterion based on sort_by parameter."""
+        if sort_by == "flagged":
+            return {
+                "course_stats__active_flags": -1,
+                "course_stats__inactive_flags": -1,
+                "username": -1,
+            }
+        elif sort_by == "recency":
+            return {"course_stats__last_activity_at": -1, "username": -1}
+        else:
+            return {
+                "course_stats__threads": -1,
+                "course_stats__responses": -1,
+                "course_stats__replies": -1,
+                "username": -1,
+            }
+
+    @classmethod
+    def get_paginated_user_stats(
+        cls, course_id: str, page: int, per_page: int, sort_criterion: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Get paginated user stats."""
+        users = User.objects.filter(
+            Q(course_stats__course_id=course_id)
+            & Q(course_stats__course_id__isnull=False)
+        ).order_by(
+            *[f"-{key}" for key, value in sort_criterion.items() if value == -1],
+            *[key for key, value in sort_criterion.items() if value == 1],
+        )
+        paginator = Paginator(users, per_page)
+        paginated_users = paginator.page(page)
+        forum_users = [
+            cls.objects.get(user_id=user_id) for user_id in paginated_users.object_list
+        ]
+        return {
+            "pagination": [{"total_count": paginator.count}],
+            "data": [user.to_dict(course_id=course_id) for user in forum_users],
+        }
+
+    @classmethod
+    def update_all_users_in_course(cls, course_id: str) -> list[str]:
+        """Update all user stats in a course."""
+        course_comments = Comment.objects.filter(
+            anonymous=False,
+            anonymous_to_peers=False,
+            course_id=course_id,
+        )
+        course_threads = CommentThread.objects.filter(
+            anonymous=False,
+            anonymous_to_peers=False,
+            course_id=course_id,
+        )
+        comment_authors = set(course_comments.values_list("author__id", flat=True))
+        thread_authors = set(course_threads.values_list("author__id", flat=True))
+        author_ids = list(comment_authors | thread_authors)
+        for author_id in author_ids:
+            cls.build_course_stats(author_id, course_id)
+        return author_ids
+
+    @classmethod
+    def build_course_stats(cls, author_id: str, course_id: str) -> None:
+        """Build course stats for a user in a course."""
+        author = User.objects.get(pk=author_id)
+        threads = CommentThread.objects.filter(
+            author=author,
+            course_id=course_id,
+            anonymous_to_peers=False,
+            anonymous=False,
+        )
+        comments = Comment.objects.filter(
+            author=author,
+            course_id=course_id,
+            anonymous_to_peers=False,
+            anonymous=False,
+        )
+        responses = comments.filter(parent__isnull=True)
+        replies = comments.filter(parent__isnull=False)
+        comment_ids = [comment.pk for comment in comments]
+        threads_ids = [thread.pk for thread in threads]
+        active_flags_comments = (
+            AbuseFlagger.objects.filter(
+                content_object_id__in=comment_ids, content_type=Comment().content_type
+            )
+            .values("content_object_id")
+            .annotate(count=Count("content_object_id"))
+            .count()
+        )
+        active_flags_threads = (
+            AbuseFlagger.objects.filter(
+                content_object_id__in=threads_ids,
+                content_type=CommentThread().content_type,
+            )
+            .values("content_object_id")
+            .annotate(count=Count("content_object_id"))
+            .count()
+        )
+        active_flags = active_flags_comments + active_flags_threads
+        inactive_flags_comments = (
+            HistoricalAbuseFlagger.objects.filter(
+                content_object_id__in=comment_ids, content_type=Comment().content_type
+            )
+            .values("content_object_id")
+            .annotate(count=Count("content_object_id"))
+            .count()
+        )
+        inactive_flags_threads = (
+            HistoricalAbuseFlagger.objects.filter(
+                content_object_id__in=threads_ids,
+                content_type=CommentThread().content_type,
+            )
+            .values("content_object_id")
+            .annotate(count=Count("content_object_id"))
+            .count()
+        )
+        inactive_flags = inactive_flags_comments + inactive_flags_threads
+        threads_updated_at = threads.aggregate(Max("updated_at"))["updated_at__max"]
+        comments_updated_at = comments.aggregate(Max("updated_at"))["updated_at__max"]
+        updated_at = max(
+            threads_updated_at or timezone.now() - timedelta(days=365 * 100),
+            comments_updated_at or timezone.now() - timedelta(days=365 * 100),
+        )
+        stats, _ = CourseStat.objects.get_or_create(user=author, course_id=course_id)
+        stats.threads = threads.count()
+        stats.responses = responses.count()
+        stats.replies = replies.count()
+        stats.active_flags = active_flags
+        stats.inactive_flags = inactive_flags
+        stats.last_activity_at = updated_at
+        stats.save()
+        # If you need to update user stats for course, call the backend method here if needed
 
 
 class CourseStat(models.Model):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
@@ -12,6 +12,7 @@ from django.db import models
 from django.db.models import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.core.exceptions import ObjectDoesNotExist
 
 from forum.utils import validate_upvote_or_downvote
 
@@ -191,6 +192,28 @@ class Content(models.Model):
     def doc_to_hash(self) -> dict[str, Any]:
         """Return a dictionary representation of the content."""
         raise NotImplementedError
+
+    @staticmethod
+    def get_entity_from_type(
+        entity_id: str, entity_type: str
+    ) -> Union["Comment", "CommentThread", None]:
+        """
+        Get entity from type.
+
+        Args:
+            entity_id (str): The ID of the entity.
+            entity_type (str): The type of entity ('Comment' or 'CommentThread').
+
+        Returns:
+            Union[Comment, CommentThread, None]: The entity instance or None if not found.
+        """
+        try:
+            if entity_type == "Comment":
+                return Comment.objects.get(pk=entity_id)
+            else:
+                return CommentThread.objects.get(pk=entity_id)
+        except ObjectDoesNotExist:
+            return None
 
     class Meta:
         app_label = "forum"
@@ -856,6 +879,166 @@ class Subscription(models.Model):
             "updated_at": self.updated_at,
             "created_at": self.created_at,
         }
+
+    @staticmethod
+    def find_subscribed_threads(
+        user_id: str, course_id: Optional[str] = None
+    ) -> list[str]:
+        """
+        Find threads that a user is subscribed to in a specific course.
+
+        Args:
+            user_id (str): The ID of the user.
+            course_id (str): The ID of the course.
+
+        Returns:
+            list: A list of thread ids that the user is subscribed to in the course.
+        """
+        subscriptions = Subscription.objects.filter(
+            subscriber__pk=user_id,
+            source_content_type=ContentType.objects.get_for_model(CommentThread),
+        )
+        thread_ids = [
+            str(subscription.source_object_id) for subscription in subscriptions
+        ]
+        if course_id:
+            thread_ids = list(
+                CommentThread.objects.filter(
+                    pk__in=thread_ids,
+                    course_id=course_id,
+                ).values_list("pk", flat=True)
+            )
+
+        return thread_ids
+
+    @staticmethod
+    def subscribe_user(
+        user_id: str, source_id: str, source_type: str
+    ) -> dict[str, Any] | None:
+        """
+        Subscribe a user to a source.
+
+        Args:
+            user_id (str): The ID of the user to subscribe.
+            source_id (str): The ID of the source to subscribe to.
+            source_type (str): The type of the source.
+
+        Returns:
+            dict[str, Any] | None: The subscription data if successful, None otherwise.
+        """
+        source = Content.get_entity_from_type(source_id, source_type)
+        if source is None:
+            return None
+
+        subscription, _ = Subscription.objects.get_or_create(
+            subscriber=User.objects.get(pk=int(user_id)),
+            source_object_id=source.pk,
+            source_content_type=source.content_type,
+        )
+        return subscription.to_dict()
+
+    @staticmethod
+    def unsubscribe_user(user_id: str, source_id: str, source_type: str) -> None:
+        """
+        Unsubscribe a user from a source.
+
+        Args:
+            user_id (str): The ID of the user to unsubscribe.
+            source_id (str): The ID of the source to unsubscribe from.
+            source_type (str): The type of the source.
+        """
+        source = Content.get_entity_from_type(source_id, source_type)
+        if source is None:
+            return
+
+        Subscription.objects.filter(
+            subscriber=User.objects.get(pk=int(user_id)),
+            source_object_id=source.pk,
+            source_content_type=source.content_type,
+        ).delete()
+
+    @staticmethod
+    def delete_subscriptions_of_a_thread(thread_id: str) -> None:
+        """
+        Delete all subscriptions for a specific thread.
+
+        Args:
+            thread_id (str): The ID of the thread.
+        """
+        source = Content.get_entity_from_type(thread_id, "CommentThread")
+        if source is None:
+            return
+
+        Subscription.objects.filter(
+            source_object_id=source.pk,
+            source_content_type=source.content_type,
+        ).delete()
+
+    @staticmethod
+    def unsubscribe_all(user_id: str) -> None:
+        """
+        Unsubscribe user from all content.
+
+        Args:
+            user_id (str): The ID of the user to unsubscribe from all content.
+        """
+        Subscription.objects.filter(subscriber__pk=user_id).delete()
+
+    @staticmethod
+    def get_subscription(
+        subscriber_id: str, source_id: str, source_type: str
+    ) -> dict[str, Any] | None:
+        """
+        Get a specific subscription by subscriber and source.
+
+        Args:
+            subscriber_id (str): The ID of the subscriber.
+            source_id (str): The ID of the source.
+            source_type (str): The type of the source.
+
+        Returns:
+            dict[str, Any] | None: The subscription data if found, None otherwise.
+        """
+        source = Content.get_entity_from_type(source_id, source_type)
+        if not source:
+            return None
+        try:
+            subscription = Subscription.objects.get(
+                subscriber_id=User.objects.get(pk=int(subscriber_id)),
+                source_object_id=source.pk,
+                source_content_type=source.content_type,
+            )
+        except Subscription.DoesNotExist:
+            return None
+        return subscription.to_dict()
+
+    @staticmethod
+    def get_subscriptions(query: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Get subscriptions based on query filters.
+
+        Args:
+            query (dict[str, Any]): Query parameters including source_id and source_type.
+
+        Returns:
+            list[dict[str, Any]]: List of subscription data.
+        """
+        source = Content.get_entity_from_type(
+            entity_id=query["source_id"], entity_type=query.get("source_type", "")
+        )
+        if not source:
+            return []
+
+        subscriptions = (
+            Subscription.objects.filter(
+                source_object_id=source.pk,
+                source_content_type=source.content_type,
+            )
+            .distinct()
+            .order_by("subscriber_id", "source_object_id")
+        )
+
+        return [subscription.to_dict() for subscription in subscriptions]
 
     class Meta:
         app_label = "forum"

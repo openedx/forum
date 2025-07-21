@@ -580,6 +580,84 @@ class AbuseFlagger(models.Model):
         default=timezone.now
     )
 
+    @staticmethod
+    def flag_content(content: Any, user: User) -> bool:
+        """
+        Flag content as abuse by a user.
+
+        Args:
+            content: The content instance (thread or comment).
+            user: The user instance.
+
+        Returns:
+            bool: True if this is the first flag, False otherwise.
+        """
+
+        # Check if user already flagged this content
+        existing_flag = AbuseFlagger.objects.filter(
+            user=user,
+            content_object_id=content.pk,
+            content_type=content.content_type,
+        ).first()
+
+        if not existing_flag:
+            AbuseFlagger.objects.create(
+                user=user,
+                content_type=content.content_type,
+                content_object_id=content.pk,
+                flagged_at=timezone.now(),
+            )
+            return True
+        return False
+
+    @staticmethod
+    def unflag_content(content: Any, user: User) -> bool:
+        """
+        Remove abuse flag from content by a user.
+
+        Args:
+            content: The content instance (thread or comment).
+            user: The user instance.
+
+        Returns:
+            bool: True if flag was removed, False if no flag existed.
+        """
+
+        deleted_count = AbuseFlagger.objects.filter(
+            user=user,
+            content_object_id=content.pk,
+            content_type=content.content_type,
+        ).delete()[0]
+
+        return deleted_count > 0
+
+    @staticmethod
+    def unflag_all_content(content: Any) -> None:
+        """
+        Remove all abuse flags from content.
+
+        Args:
+            content: The content instance (thread or comment).
+        """
+
+        # Get all current abuse flaggers
+        current_flaggers = AbuseFlagger.objects.filter(
+            content_object_id=content.pk,
+            content_type=content.content_type,
+        )
+
+        # Move current flags to historical flags
+        for flag in current_flaggers:
+            HistoricalAbuseFlagger.objects.get_or_create(
+                content_type=content.content_type,
+                content_object_id=content.pk,
+                user=flag.user,
+                defaults={"flagged_at": timezone.now()},
+            )
+
+        # Delete all current abuse flags
+        current_flaggers.delete()
+
     class Meta:
         app_label = "forum"
         unique_together = ("user", "content_type", "content_object_id")
@@ -605,6 +683,23 @@ class HistoricalAbuseFlagger(models.Model):
     flagged_at: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         default=timezone.now
     )
+
+    @staticmethod
+    def has_historical_flags(content: Any) -> bool:
+        """
+        Check if content has any historical abuse flags.
+
+        Args:
+            content: The content instance (thread or comment).
+
+        Returns:
+            bool: True if content has historical flags, False otherwise.
+        """
+
+        return HistoricalAbuseFlagger.objects.filter(
+            content_object_id=content.pk,
+            content_type=content.content_type,
+        ).exists()
 
     class Meta:
         app_label = "forum"

@@ -94,13 +94,7 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        abuse_flaggers = entity.abuse_flaggers
-        first_flag_added = False
-        if user.pk not in abuse_flaggers:
-            AbuseFlagger.objects.create(
-                user=user, content=entity, flagged_at=timezone.now()
-            )
-            first_flag_added = len(abuse_flaggers) == 1
+        first_flag_added = AbuseFlagger.flag_content(entity, user)
         if first_flag_added:
             cls.update_stats_for_course(user_id, entity.course_id, active_flags=1)
         return entity.to_dict()
@@ -117,13 +111,10 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        has_no_historical_flags = len(entity.historical_abuse_flaggers) == 0
-        if user.pk in entity.abuse_flaggers:
-            AbuseFlagger.objects.filter(
-                user=user,
-                content_object_id=entity.pk,
-                content_type=entity.content_type,
-            ).delete()
+        has_no_historical_flags = not HistoricalAbuseFlagger.has_historical_flags(
+            entity
+        )
+        if AbuseFlagger.unflag_content(entity, user):
             cls.update_stats_after_unflag(
                 entity.author.pk,
                 entity.pk,
@@ -142,25 +133,10 @@ class MySQLBackend(AbstractBackend):
         if not entity:
             raise ValueError("Entity doesn't exist.")
 
-        has_no_historical_flags = len(entity.historical_abuse_flaggers) == 0
-        historical_abuse_flaggers = list(
-            set(entity.historical_abuse_flaggers) | set(entity.abuse_flaggers)
+        has_no_historical_flags = not HistoricalAbuseFlagger.has_historical_flags(
+            entity
         )
-        for flagger_id in historical_abuse_flaggers:
-            # Skip if HistoricalAbuseFlagger already exists for this user and entity
-            if not HistoricalAbuseFlagger.objects.filter(
-                content_type=entity.content_type,
-                content_object_id=entity.pk,
-                user_id=flagger_id,
-            ).exists():
-                HistoricalAbuseFlagger.objects.create(
-                    content=entity,
-                    user_id=flagger_id,
-                    flagged_at=timezone.now(),
-                )
-        AbuseFlagger.objects.filter(
-            content_object_id=entity.pk, content_type=entity.content_type
-        ).delete()
+        AbuseFlagger.unflag_all_content(entity)
         cls.update_stats_after_unflag(
             entity.author.pk,
             entity.pk,

@@ -3,6 +3,7 @@ Native Python Commenttables APIs.
 """
 
 from forum.backends.mysql.api import MySQLBackend as backend
+from forum.serializers.commentables import CommentableSerializer
 
 
 def get_commentables_stats(course_id: str) -> dict[str, int]:
@@ -18,4 +19,5 @@ def get_commentables_stats(course_id: str) -> dict[str, int]:
         e.g.
         reponse = {'course': {'discussion': 1, 'question': 1}}
     """
-    return backend.get_commentables_counts_based_on_type(course_id)
+    commentable_counts = backend.get_commentables_counts_based_on_type(course_id)
+    return CommentableSerializer(commentable_counts).data

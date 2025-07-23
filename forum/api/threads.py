@@ -33,6 +33,7 @@ def _get_thread_data_from_request_data(data: dict[str, Any]) -> dict[str, Any]:
         "pinned",
         "group_id",
         "context",
+        "user_group_ids",
     ]
     result = {field: data.get(field) for field in fields if data.get(field) is not None}
 
@@ -286,6 +287,7 @@ def create_thread(
     thread_type: str = "discussion",
     group_id: Optional[int] = None,
     context: str = "course",
+    user_group_ids: Optional[list[int]] = None,
 ) -> dict[str, Any]:
     """
     Create a new thread.
@@ -315,6 +317,7 @@ def create_thread(
         "thread_type": thread_type,
         "group_id": group_id,
         "context": context,
+        "user_group_ids": user_group_ids,
     }
     thread_data: dict[str, Any] = _get_thread_data_from_request_data(data)
 
@@ -380,6 +383,7 @@ def get_user_threads(
         "user_id": user_id,
         "group_id": group_id,
         "group_ids": group_ids,
+        "user_group_ids": kwargs.get("user_group_ids"),
     }
     params = {k: v for k, v in params.items() if v is not None}
     backend.validate_params(params)

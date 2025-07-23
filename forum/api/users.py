@@ -197,6 +197,7 @@ def get_user_active_threads(
     page: Optional[int] = FORUM_DEFAULT_PAGE,
     per_page: Optional[int] = FORUM_DEFAULT_PER_PAGE,
     group_id: Optional[str] = None,
+    **kwargs,
 ) -> dict[str, Any]:
     """Get user active threads."""
     backend = get_backend(course_id)()
@@ -237,6 +238,7 @@ def get_user_active_threads(
         "user_id": user_id,
         "course_id": course_id,
         "group_ids": [int(group_id)] if group_id else [],
+        "user_group_ids": kwargs.get("user_group_ids"),
         "author_id": author_id,
         "thread_type": thread_type,
         "filter_flagged": flagged,

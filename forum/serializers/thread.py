@@ -64,6 +64,7 @@ class ThreadSerializer(ContentSerializer):
     resp_total = serializers.SerializerMethodField(required=False)
     resp_skip = serializers.IntegerField(required=False, default=0)
     resp_limit = serializers.IntegerField(required=False, default=10)
+    user_group_ids = serializers.ListField(allow_null=True, default=None)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """

@@ -1,16 +1,14 @@
 """Tests for db client."""
 
+import unittest
 from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 
-from forum.backends.mysql.models import (
-    AbuseFlagger,
-    CommentThread,
-    CourseStat,
-)
 from forum.backends.mysql.api import MySQLBackend as backend
+from forum.backends.mysql.models import AbuseFlagger, CommentThread, CourseStat
+from forum.serializers.thread import ThreadSerializer
 
 User = get_user_model()
 
@@ -175,3 +173,56 @@ def test_update_stats_for_course_calls_build_course_stats() -> None:
     with patch.object(backend, "build_course_stats") as mock_build_course_stats:
         backend.update_stats_for_course(str(user.pk), course_id, active_flags=1)
         mock_build_course_stats.assert_called_once_with(str(user.pk), course_id)
+
+
+@pytest.mark.django_db
+class TestMongoAPI(unittest.TestCase):
+    """
+    Test cases for the MySQL backend API.
+    """
+
+    def setUp(self) -> None:
+        user = User.objects.create(username="testuser")
+
+        self.thread_1 = CommentThread.objects.create(
+            author=user,
+            course_id="course123",
+            title="Test Thread",
+            body="This is a test thread",
+            thread_type="discussion",
+            context="course",
+            commentable_id="id_1",
+        )
+        self.thread_2 = CommentThread.objects.create(
+            author=user,
+            course_id="course123",
+            title="Test Thread",
+            body="This is a test thread",
+            thread_type="discussion",
+            context="course",
+            commentable_id="id_2",
+        )
+        self.thread_3 = CommentThread.objects.create(
+            author=user,
+            course_id="course123",
+            title="Test Thread",
+            body="This is a test thread",
+            thread_type="discussion",
+            context="course",
+            commentable_id="id_2",
+        )
+
+    def test_filter_by_commentable_ids(self) -> None:
+        """
+        Test filtering threads by commentable_ids.
+        """
+        threads = backend.get_threads(
+            user_id="",
+            params={"commentable_ids": ["id_2"], "course_id": "course_id"},
+            serializer=ThreadSerializer,
+            thread_ids=[self.thread_1.id, self.thread_2.id, self.thread_3.id],  # type: ignore[attr-defined]
+        )
+        # make sure the threads are filtered correctly by commentable_ids aka Topics ids
+        assert threads["thread_count"] == 2
+        for thread in threads["collection"]:
+            assert thread["commentable_id"] == "id_2"

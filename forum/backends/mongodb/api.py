@@ -551,6 +551,7 @@ class MongoBackend(AbstractBackend):
         per_page: int,
         context: str = "course",
         raw_query: bool = False,
+        commentable_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """
         Handles complex thread queries based on various filters and returns paginated results.
@@ -639,6 +640,9 @@ class MongoBackend(AbstractBackend):
         if filter_unresponded:
             base_query["comment_count"] = 0
 
+        # filter by topics: if commentable_ids are provided, commentable_id is basically topic id
+        if commentable_ids:
+            base_query["commentable_id"] = {"$in": commentable_ids}
         sort_criteria = get_sort_criteria(sort_key)
 
         comment_threads = CommentThread().find(base_query)
@@ -979,6 +983,7 @@ class MongoBackend(AbstractBackend):
             params.get("sort_key", ""),
             int(params.get("page", 1)),
             int(params.get("per_page", 100)),
+            commentable_ids=params.get("commentable_ids", []),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,

@@ -67,3 +67,6 @@ docs/forum.*.rst
 # Private requirements
 requirements/private.in
 requirements/private.txt
+
+# IDE configs
+.idea/

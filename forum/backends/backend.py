@@ -392,7 +392,6 @@ class AbstractBackend:
         anonymous: Optional[bool] = False,
         anonymous_to_peers: Optional[bool] = False,
         endorsed: Optional[bool] = False,
-        closed: Optional[bool] = False,
         editing_user_id: Optional[str] = None,
         edit_reason_code: Optional[str] = None,
         endorsement_user_id: Optional[str] = None,

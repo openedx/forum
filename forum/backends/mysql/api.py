@@ -606,6 +606,7 @@ class MySQLBackend(AbstractBackend):
         per_page: int,
         context: str = "course",
         raw_query: bool = False,
+        commentable_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """
         Handles complex thread queries based on various filters and returns paginated results.
@@ -627,6 +628,7 @@ class MySQLBackend(AbstractBackend):
             per_page (int): The number of threads per page.
             context (str): The context to filter threads by.
             raw_query (bool): Whether to return raw query results without further processing.
+            commentable_ids (Optional[list[str]]): List of commentable IDs to filter threads by topic id.
 
         Returns:
             dict[str, Any]: A dictionary containing the paginated thread results and associated metadata.
@@ -718,7 +720,11 @@ class MySQLBackend(AbstractBackend):
             base_query = base_query.annotate(num_comments=Count("comment")).filter(
                 num_comments=0
             )
-
+        # filter by topics: if commentable_ids are provided, commentable_id is basically topic id
+        if commentable_ids:
+            base_query = base_query.filter(
+                commentable_id__in=commentable_ids,
+            )
         base_query = base_query.annotate(
             votes_point=Sum("uservote__vote"),
             comments_count=Count("comment", distinct=True),
@@ -1071,6 +1077,7 @@ class MySQLBackend(AbstractBackend):
             params.get("sort_key", ""),
             int(params.get("page", 1)),
             int(params.get("per_page", 100)),
+            commentable_ids=params.get("commentable_ids", []),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,

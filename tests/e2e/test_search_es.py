@@ -741,7 +741,7 @@ def test_spelling_correction_with_mush_clause(
 ) -> None:
     """
     Test the spelling correction feature & mush clause in the search.
-    Verifies the even if the text matches with the threds it should also consider other
+    Verifies the even if the text matches with the threads it should also consider other
     params in the search i.e course_id
     """
     backend = patched_get_backend()

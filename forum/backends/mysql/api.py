@@ -11,14 +11,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import (
     Count,
-    Exists,
     F,
     IntegerField,
     Max,
     OuterRef,
     Q,
     Subquery,
-    Sum,
 )
 from django.utils import timezone
 from rest_framework import status
@@ -33,6 +31,7 @@ from forum.backends.mysql.models import (
     CourseStat,
     EditHistory,
     ForumUser,
+    get_user_by_id,
     HistoricalAbuseFlagger,
     LastReadTime,
     ReadState,
@@ -254,13 +253,7 @@ class MySQLBackend(AbstractBackend):
         Raises:
             ValueError: If the thread or user is not found.
         """
-        try:
-            thread = CommentThread.objects.get(pk=int(thread_id))
-            user = ForumUser.objects.get(user__pk=user_id)
-        except ObjectDoesNotExist as exc:
-            raise ValueError("User / Thread doesn't exist") from exc
-
-        return user.to_dict(), thread.to_dict()
+        return ForumUser.validate_with_thread(user_id, thread_id)
 
     @staticmethod
     def pin_unpin_thread(thread_id: str, action: str) -> None:
@@ -271,12 +264,7 @@ class MySQLBackend(AbstractBackend):
             thread_id (str): The ID of the thread to pin/unpin.
             action (str): The action to perform ("pin" or "unpin").
         """
-        try:
-            comment_thread = CommentThread.objects.get(pk=int(thread_id))
-        except ObjectDoesNotExist as exc:
-            raise ValueError("Thread doesn't exist") from exc
-        comment_thread.pinned = action == "pin"
-        comment_thread.save()
+        CommentThread.pin_unpin(thread_id, action)
 
     @classmethod
     def get_pinned_unpinned_thread_serialized_data(
@@ -295,17 +283,19 @@ class MySQLBackend(AbstractBackend):
         Raises:
             ValueError: If the serialization is not valid.
         """
-        user = ForumUser.objects.get(user__pk=user_id)
-        updated_thread = CommentThread.objects.get(pk=thread_id)
-        user_data = user.to_dict()
+        user_data = ForumUser.get_by_user_id(user_id)
+        updated_thread = CommentThread.get_by_id(thread_id)
+
+        if not user_data or not updated_thread:
+            raise ValueError("User or thread not found")
+
         context = {
             "user_id": user_data["_id"],
             "username": user_data["username"],
             "type": "thread",
             "id": thread_id,
         }
-        if updated_thread is not None:
-            context = {**context, **updated_thread.to_dict()}
+        context = {**context, **updated_thread}
         serializer = serializer_class(data=context, backend=cls)
         if not serializer.is_valid():
             raise ValueError(serializer.errors)
@@ -578,102 +568,19 @@ class MySQLBackend(AbstractBackend):
         Returns:
             dict[str, Any]: A dictionary containing the paginated thread results and associated metadata.
         """
-        mysql_comment_thread_ids: list[int] = []
+        user = get_user_by_id(user_id)
 
-        for tid in comment_thread_ids:
-            try:
-                thread_id = int(tid)
-                mysql_comment_thread_ids.append(thread_id)
-            except ValueError:
-                continue
-
-        if user_id is None or user_id == "":
-            user = None
-        else:
-            try:
-                user = User.objects.get(pk=int(user_id))
-            except User.DoesNotExist as exc:
-                raise ValueError("User does not exist") from exc
-        # Base query
-        base_query = CommentThread.objects.filter(
-            pk__in=mysql_comment_thread_ids, context=context
-        )
-
-        # Group filtering
-        if group_ids:
-            base_query = base_query.filter(
-                Q(group_id__in=group_ids) | Q(group_id__isnull=True)
-            )
-
-        # Author filtering
-        if author_id:
-            base_query = base_query.filter(author__pk=author_id)
-            if user and int(author_id) != user.pk:
-                base_query = base_query.filter(
-                    anonymous=False, anonymous_to_peers=False
-                )
-
-        # Thread type filtering
-        if thread_type:
-            base_query = base_query.filter(thread_type=thread_type)
-
-        # Flagged content filtering
-        if filter_flagged:
-            comment_abuse_flaggers = AbuseFlagger.objects.filter(
-                content_object_id=OuterRef("pk"),
-                content_type=ContentType.objects.get_for_model(Comment),
-            )
-
-            flagged_comments = (
-                Comment.objects.filter(course_id=course_id)
-                .annotate(has_abuse_flaggers=Exists(comment_abuse_flaggers))
-                .filter(has_abuse_flaggers=True)
-                .values_list("comment_thread_id", flat=True)
-            )
-            thread_abuse_flaggers = AbuseFlagger.objects.filter(
-                content_object_id=OuterRef("pk"),
-                content_type=ContentType.objects.get_for_model(CommentThread),
-            )
-
-            flagged_threads = (
-                CommentThread.objects.filter(course_id=course_id)
-                .annotate(has_abuse_flaggers=Exists(thread_abuse_flaggers))
-                .filter(has_abuse_flaggers=True)
-                .values_list("id", flat=True)
-            )
-
-            base_query = base_query.filter(
-                pk__in=list(
-                    set(mysql_comment_thread_ids) & set(flagged_comments)
-                    | set(flagged_threads)
-                )
-            )
-
-        # Unanswered questions filtering
-        if filter_unanswered:
-            endorsed_threads = Comment.objects.filter(
-                course_id=course_id,
-                parent__isnull=True,
-                endorsed=True,
-            ).values_list("comment_thread_id", flat=True)
-            base_query = base_query.filter(
-                thread_type="question",
-            ).exclude(pk__in=endorsed_threads)
-
-        # Unresponded threads filtering
-        if filter_unresponded:
-            base_query = base_query.annotate(num_comments=Count("comment")).filter(
-                num_comments=0
-            )
-
-        base_query = base_query.annotate(
-            votes_point=Sum("uservote__vote"),
-            comments_count=Count("comment", distinct=True),
-        )
-
-        base_query = base_query.annotate(
-            votes_point=Sum("uservote__vote", distinct=True),
-            comments_count=Count("comment", distinct=True),
+        base_query = CommentThread.build_complex_query(
+            thread_ids=comment_thread_ids,
+            course_id=course_id,
+            context=context,
+            group_ids=group_ids,
+            author_id=author_id,
+            thread_type=thread_type,
+            filter_flagged=filter_flagged,
+            filter_unanswered=filter_unanswered,
+            filter_unresponded=filter_unresponded,
+            user=user,
         )
 
         sort_criteria = cls.get_sort_criteria(sort_key)

@@ -9,12 +9,34 @@ from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Q, Count, Sum, OuterRef, Exists
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ObjectDoesNotExist
 
 from forum.utils import validate_upvote_or_downvote
+
+
+# Extend the User model with helper methods
+def get_user_by_id(user_id: str) -> Any:
+    """
+    Get user by ID.
+
+    Args:
+        user_id: The ID of the user to retrieve.
+
+    Returns:
+        User instance or None if not found.
+
+    Raises:
+        ValueError: If the user doesn't exist.
+    """
+    if not user_id or user_id == "":
+        return None
+    try:
+        return User.objects.get(pk=int(user_id))
+    except User.DoesNotExist as exc:
+        raise ValueError("User does not exist") from exc
 
 
 class ForumUser(models.Model):
@@ -29,6 +51,48 @@ class ForumUser(models.Model):
     default_sort_key: models.CharField[str, str] = models.CharField(
         max_length=25, default="date"
     )
+
+    @classmethod
+    def get_by_user_id(cls, user_id: str) -> dict[str, Any] | None:
+        """
+        Get forum user by user_id.
+
+        Args:
+            user_id: The ID of the user to retrieve.
+
+        Returns:
+            Dictionary representation of the forum user or None if not found.
+        """
+        try:
+            forum_user = cls.objects.get(user__pk=int(user_id))
+            return forum_user.to_dict()
+        except (cls.DoesNotExist, ValueError):
+            return None
+
+    @classmethod
+    def validate_with_thread(
+        cls, user_id: str, thread_id: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Validate that both user and thread exist.
+
+        Args:
+            user_id: The ID of the user to validate.
+            thread_id: The ID of the thread to validate.
+
+        Returns:
+            Tuple containing (user_data, thread_data).
+
+        Raises:
+            ValueError: If the thread or user is not found.
+        """
+        try:
+            thread = CommentThread.objects.get(pk=int(thread_id))
+            user = cls.objects.get(user__pk=user_id)
+        except ObjectDoesNotExist as exc:
+            raise ValueError("User / Thread doesn't exist") from exc
+
+        return user.to_dict(), thread.to_dict()
 
     def to_dict(self, course_id: Optional[str] = None) -> dict[str, Any]:
         """Return a dictionary representation of the model."""
@@ -275,6 +339,161 @@ class CommentThread(Content):
     def get(cls, thread_id: str) -> CommentThread:
         """Get a comment thread model instance."""
         return cls.objects.get(pk=int(thread_id))
+
+    @classmethod
+    def get_by_id(cls, thread_id: str) -> dict[str, Any] | None:
+        """
+        Get a thread by its ID.
+
+        Args:
+            thread_id: The ID of the thread to retrieve.
+
+        Returns:
+            Dictionary representation of the thread or None if not found.
+        """
+        try:
+            thread = cls.objects.get(pk=thread_id)
+            return thread.to_dict()
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def pin_unpin(cls, thread_id: str, action: str) -> None:
+        """
+        Pin or unpin a thread based on action parameter.
+
+        Args:
+            thread_id: The ID of the thread to pin/unpin.
+            action: The action to perform ("pin" or "unpin").
+
+        Raises:
+            ValueError: If the thread doesn't exist.
+        """
+        try:
+            comment_thread = cls.objects.get(pk=int(thread_id))
+        except ObjectDoesNotExist as exc:
+            raise ValueError("Thread doesn't exist") from exc
+        comment_thread.pinned = action == "pin"
+        comment_thread.save()
+
+    @classmethod
+    def build_complex_query(
+        cls,
+        thread_ids: list[str],
+        course_id: str,
+        context: str = "course",
+        group_ids: Optional[list[int]] = None,
+        author_id: Optional[str] = None,
+        thread_type: Optional[str] = None,
+        filter_flagged: bool = False,
+        filter_unanswered: bool = False,
+        filter_unresponded: bool = False,
+        user: Optional[Any] = None,
+    ) -> Any:
+        """
+        Build a complex query for threads with various filters.
+
+        Args:
+            thread_ids: List of thread IDs to filter by.
+            course_id: The course ID to filter by.
+            context: The context to filter by (default: "course").
+            group_ids: List of group IDs for group-based filtering.
+            author_id: The ID of the author to filter threads by.
+            thread_type: The type of thread to filter by.
+            filter_flagged: Whether to filter threads flagged for abuse.
+            filter_unanswered: Whether to filter unanswered questions.
+            filter_unresponded: Whether to filter threads with no responses.
+            user: The user making the request for anonymous filtering.
+
+        Returns:
+            Django QuerySet with applied filters.
+        """
+        # Convert thread IDs to integers
+        mysql_thread_ids = []
+        for tid in thread_ids:
+            try:
+                thread_id = int(tid)
+                mysql_thread_ids.append(thread_id)
+            except ValueError:
+                continue
+
+        # Base query
+        base_query = cls.objects.filter(pk__in=mysql_thread_ids, context=context)
+
+        # Group filtering
+        if group_ids:
+            base_query = base_query.filter(
+                Q(group_id__in=group_ids) | Q(group_id__isnull=True)
+            )
+
+        # Author filtering
+        if author_id:
+            base_query = base_query.filter(author__pk=author_id)
+            if user and int(author_id) != user.pk:
+                base_query = base_query.filter(
+                    anonymous=False, anonymous_to_peers=False
+                )
+
+        # Thread type filtering
+        if thread_type:
+            base_query = base_query.filter(thread_type=thread_type)
+
+        # Flagged content filtering
+        if filter_flagged:
+            comment_abuse_flaggers = AbuseFlagger.objects.filter(
+                content_object_id=OuterRef("pk"),
+                content_type=ContentType.objects.get_for_model(Comment),
+            )
+
+            flagged_comments = (
+                Comment.objects.filter(course_id=course_id)
+                .annotate(has_abuse_flaggers=Exists(comment_abuse_flaggers))
+                .filter(has_abuse_flaggers=True)
+                .values_list("comment_thread_id", flat=True)
+            )
+
+            thread_abuse_flaggers = AbuseFlagger.objects.filter(
+                content_object_id=OuterRef("pk"),
+                content_type=ContentType.objects.get_for_model(cls),
+            )
+
+            flagged_threads = (
+                cls.objects.filter(course_id=course_id)
+                .annotate(has_abuse_flaggers=Exists(thread_abuse_flaggers))
+                .filter(has_abuse_flaggers=True)
+                .values_list("id", flat=True)
+            )
+
+            base_query = base_query.filter(
+                pk__in=list(
+                    set(mysql_thread_ids) & set(flagged_comments) | set(flagged_threads)
+                )
+            )
+
+        # Unanswered questions filtering
+        if filter_unanswered:
+            endorsed_threads = Comment.objects.filter(
+                course_id=course_id,
+                parent__isnull=True,
+                endorsed=True,
+            ).values_list("comment_thread_id", flat=True)
+            base_query = base_query.filter(
+                thread_type="question",
+            ).exclude(pk__in=endorsed_threads)
+
+        # Unresponded threads filtering
+        if filter_unresponded:
+            base_query = base_query.annotate(num_comments=Count("comment")).filter(
+                num_comments=0
+            )
+
+        # Add annotations for votes and comments count
+        base_query = base_query.annotate(
+            votes_point=Sum("uservote__vote", distinct=True),
+            comments_count=Count("comment", distinct=True),
+        )
+
+        return base_query
 
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the model."""

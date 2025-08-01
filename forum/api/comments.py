@@ -143,7 +143,6 @@ def update_comment(
     anonymous: Optional[bool] = None,
     anonymous_to_peers: Optional[bool] = None,
     endorsed: Optional[bool] = None,
-    closed: Optional[bool] = None,
     editing_user_id: Optional[str] = None,
     edit_reason_code: Optional[str] = None,
     endorsement_user_id: Optional[str] = None,
@@ -158,7 +157,6 @@ def update_comment(
         anonymous (Optional[bool]): anonymous flag(True or False).
         anonymous_to_peers (Optional[bool]): anonymous to peers flag(True or False).
         endorsed (Optional[bool]): Flag indicating if the comment is endorsed by any user.
-        closed (Optional[bool]): Flag indicating if the comment thread is closed.
         editing_user_id (Optional[str]): The ID of the user editing the comment.
         edit_reason_code (Optional[str]): The reason for editing the comment, typically represented by a code.
         endorsement_user_id (Optional[str]): The ID of the user endorsing the comment.
@@ -180,7 +178,6 @@ def update_comment(
         anonymous=anonymous,
         anonymous_to_peers=anonymous_to_peers,
         endorsed=endorsed,
-        closed=closed,
         editing_user_id=editing_user_id,
         edit_reason_code=edit_reason_code,
         endorsement_user_id=endorsement_user_id,

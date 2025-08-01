@@ -858,6 +858,108 @@ class Comment(Content):
         """Get a comment model instance."""
         return cls.objects.get(pk=int(comment_id))
 
+    @classmethod
+    def create_comment(cls, data: dict[str, Any]) -> "Comment":
+        """Create and return a new Comment instance using ORM logic."""
+        comment_thread = None
+        parent = None
+        comment_thread_id = data.get("comment_thread_id")
+        parent_id = data.get("parent_id")
+        if comment_thread_id:
+            comment_thread = CommentThread.objects.get(pk=int(comment_thread_id))
+        if parent_id:
+            parent = cls.objects.get(pk=int(parent_id))
+        new_comment = cls.objects.create(
+            body=data.get("body"),
+            course_id=data.get("course_id"),
+            anonymous=data.get("anonymous", False),
+            anonymous_to_peers=data.get("anonymous_to_peers", False),
+            author=User.objects.get(pk=int(data["author_id"])),
+            comment_thread=comment_thread,
+            parent=parent,
+            depth=data.get("depth", 0),
+        )
+        new_comment.sort_key = new_comment.get_sort_key()
+        new_comment.save()
+        return new_comment
+
+    @classmethod
+    def get_thread_id_by_comment_id(cls, comment_id: str) -> str:
+        """Return the thread id for the given comment id."""
+        try:
+            comment = cls.objects.get(pk=comment_id)
+        except ObjectDoesNotExist as exc:
+            raise ValueError("comment does not exist.") from exc
+        return comment.comment_thread.pk
+
+    @classmethod
+    def get_comment(cls, comment_id: str) -> dict[str, Any] | None:
+        """Return comment as dict from comment_id."""
+        try:
+            comment = cls.objects.get(pk=comment_id)
+        except cls.DoesNotExist:
+            return None
+        return comment.to_dict()
+
+    @classmethod
+    def update_comment_and_get_updated_comment(
+        cls,
+        comment_id: str,
+        body: Optional[str] = None,
+        course_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        anonymous: Optional[bool] = False,
+        anonymous_to_peers: Optional[bool] = False,
+        endorsed: Optional[bool] = None,
+        editing_user_id: Optional[str] = None,
+        edit_reason_code: Optional[str] = None,
+        endorsement_user_id: Optional[str] = None,
+    ) -> dict[str, Any] | None:
+        """Update an existing comment and return its dict."""
+        try:
+            comment = cls.objects.get(id=comment_id)
+        except cls.DoesNotExist:
+            return None
+
+        original_body = comment.body
+        if body:
+            comment.body = body
+        if course_id:
+            comment.course_id = course_id
+        if user_id:
+            comment.author = User.objects.get(pk=user_id)
+        if anonymous is not None:
+            comment.anonymous = anonymous
+        if anonymous_to_peers is not None:
+            comment.anonymous_to_peers = anonymous_to_peers
+        if endorsed is not None:
+            comment.endorsed = endorsed
+            if endorsed is False:
+                comment.endorsement = {}
+            if endorsement_user_id:
+                comment.endorsement = {
+                    "user_id": endorsement_user_id,
+                    "time": str(timezone.now()),
+                }
+        if editing_user_id:
+            EditHistory.objects.create(
+                content_object_id=comment.pk,
+                content_type=comment.content_type,
+                editor=User.objects.get(pk=editing_user_id),
+                original_body=original_body,
+                reason_code=edit_reason_code,
+                created_at=timezone.now(),
+            )
+        comment.updated_at = timezone.now()
+        comment.save()
+        return comment.to_dict()
+
+    @classmethod
+    def delete_comment(cls, comment_id: str) -> None:
+        """Delete comment from comment_id."""
+        comment = cls.objects.get(pk=comment_id)
+        comment.delete()
+
     def doc_to_hash(self) -> dict[str, Any]:
         """
         Converts the Comment model instance to a dictionary representation for Elasticsearch.
@@ -873,6 +975,14 @@ class Comment(Content):
             "updated_at": self.updated_at.isoformat(),
             "title": None,
         }
+
+    @classmethod
+    def get_course_id_by_comment_id(cls, comment_id: str) -> str | None:
+        """Return course_id for the matching comment."""
+        comment = cls.objects.filter(id=comment_id).first()
+        if comment:
+            return comment.course_id
+        return None
 
     class Meta:
         app_label = "forum"

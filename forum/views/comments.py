@@ -107,8 +107,6 @@ class CommentsAPIView(APIView):
                 anonymous_to_peers = str_to_bool(anonymous_to_peers)
             if endorsed := request_data.get("endorsed"):
                 endorsed = str_to_bool(endorsed)
-            if closed := request_data.get("closed"):
-                closed = str_to_bool(closed)
             comment = update_comment(
                 comment_id,
                 request_data.get("body"),
@@ -116,7 +114,6 @@ class CommentsAPIView(APIView):
                 anonymous,
                 anonymous_to_peers,
                 endorsed,
-                closed,
                 request_data.get("editing_user_id"),
                 request_data.get("edit_reason_code"),
                 request_data.get("endorsement_user_id"),

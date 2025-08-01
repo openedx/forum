@@ -1134,11 +1134,7 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def get_comment(comment_id: str) -> dict[str, Any] | None:
         """Return comment from comment_id."""
-        try:
-            comment = Comment.objects.get(pk=comment_id)
-        except Comment.DoesNotExist:
-            return None
-        return comment.to_dict()
+        return Comment.get_comment(comment_id)
 
     @staticmethod
     def get_comments(**kwargs: Any) -> list[dict[str, Any]]:
@@ -1171,26 +1167,7 @@ class MySQLBackend(AbstractBackend):
     @classmethod
     def create_comment(cls, data: dict[str, Any]) -> str:
         """Handle comment creation and returns a comment."""
-        comment_thread = None
-        parent = None
-        comment_thread_id = data.get("comment_thread_id")
-        parent_id = data.get("parent_id")
-        if comment_thread_id:
-            comment_thread = CommentThread.objects.get(pk=int(comment_thread_id))
-        if parent_id:
-            parent = Comment.objects.get(pk=int(parent_id))
-        new_comment = Comment.objects.create(
-            body=data.get("body"),
-            course_id=data.get("course_id"),
-            anonymous=data.get("anonymous", False),
-            anonymous_to_peers=data.get("anonymous_to_peers", False),
-            author=User.objects.get(pk=int(data["author_id"])),
-            comment_thread=comment_thread,
-            parent=parent,
-            depth=data.get("depth", 0),
-        )
-        new_comment.sort_key = new_comment.get_sort_key()
-        new_comment.save()
+        new_comment = Comment.create_comment(data)
         if data.get("parent_id"):
             cls.update_child_count_in_parent_comment(data["parent_id"], 1)
             cls.update_stats_for_course(data["author_id"], data["course_id"], replies=1)
@@ -1206,8 +1183,7 @@ class MySQLBackend(AbstractBackend):
         comment = Comment.objects.get(pk=comment_id)
         if comment.parent:
             cls.update_child_count_in_parent_comment(str(comment.parent.pk), -1)
-
-        comment.delete()
+        Comment.delete_comment(comment_id)
 
     @staticmethod
     def get_commentables_counts_based_on_type(course_id: str) -> dict[str, Any]:
@@ -1544,11 +1520,7 @@ class MySQLBackend(AbstractBackend):
         """
         The thread Id from the parent comment.
         """
-        try:
-            comment = Comment.objects.get(pk=parent_comment_id)
-        except ObjectDoesNotExist as exc:
-            raise ValueError("comment does not exist.") from exc
-        return comment.comment_thread.pk
+        return Comment.get_thread_id_by_comment_id(parent_comment_id)
 
     @staticmethod
     def update_comment_and_get_updated_comment(
@@ -1559,7 +1531,6 @@ class MySQLBackend(AbstractBackend):
         anonymous: Optional[bool] = False,
         anonymous_to_peers: Optional[bool] = False,
         endorsed: Optional[bool] = None,
-        closed: Optional[bool] = False,
         editing_user_id: Optional[str] = None,
         edit_reason_code: Optional[str] = None,
         endorsement_user_id: Optional[str] = None,
@@ -1575,52 +1546,24 @@ class MySQLBackend(AbstractBackend):
             anonymous (Optional[bool]): anonymous flag(True or False).
             anonymous_to_peers (Optional[bool]): anonymous to peers flag(True or False).
             endorsed (Optional[bool]): Flag indicating if the comment is endorsed by any user.
-            closed (Optional[bool]): Flag indicating if the comment thread is closed.
             editing_user_id (Optional[str]): The ID of the user editing the comment.
             edit_reason_code (Optional[str]): The reason for editing the comment, typically represented by a code.
             endorsement_user_id (Optional[str]): The ID of the user endorsing the comment.
         Response:
             The details of the comment that is updated.
         """
-        try:
-            comment = Comment.objects.get(id=comment_id)
-        except Comment.DoesNotExist:
-            return None
-
-        original_body = comment.body
-        if body:
-            comment.body = body
-        if course_id:
-            comment.course_id = course_id
-        if user_id:
-            comment.author = User.objects.get(pk=user_id)
-        if anonymous is not None:
-            comment.anonymous = anonymous
-        if anonymous_to_peers is not None:
-            comment.anonymous_to_peers = anonymous_to_peers
-        if endorsed is not None:
-            comment.endorsed = endorsed
-            if endorsed is False:
-                comment.endorsement = {}
-            if endorsement_user_id:
-                comment.endorsement = {
-                    "user_id": endorsement_user_id,
-                    "time": str(timezone.now()),
-                }
-
-        if editing_user_id:
-            EditHistory.objects.create(
-                content_object_id=comment.pk,
-                content_type=comment.content_type,
-                editor=User.objects.get(pk=editing_user_id),
-                original_body=original_body,
-                reason_code=edit_reason_code,
-                created_at=timezone.now(),
-            )
-
-        comment.updated_at = timezone.now()
-        comment.save()
-        return comment.to_dict()
+        return Comment.update_comment_and_get_updated_comment(
+            comment_id=comment_id,
+            body=body,
+            course_id=course_id,
+            user_id=user_id,
+            anonymous=anonymous,
+            anonymous_to_peers=anonymous_to_peers,
+            endorsed=endorsed,
+            editing_user_id=editing_user_id,
+            edit_reason_code=edit_reason_code,
+            endorsement_user_id=endorsement_user_id,
+        )
 
     @staticmethod
     def get_course_id_by_thread_id(thread_id: str) -> str | None:
@@ -1637,10 +1580,7 @@ class MySQLBackend(AbstractBackend):
         """
         Return course_id for the matching comment.
         """
-        comment = Comment.objects.filter(id=comment_id).first()
-        if comment:
-            return comment.course_id
-        return None
+        return Comment.get_course_id_by_comment_id(comment_id)
 
     @staticmethod
     def get_users(**kwargs: Any) -> list[dict[str, Any]]:

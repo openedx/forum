@@ -291,5 +291,5 @@ class ThreadSerializer(ContentSerializer):
     def get_closed_by(self, obj: dict[str, Any]) -> Optional[str]:
         """Retrieve the username of the person who closed the object."""
         if closed_by_id := obj.get("closed_by_id"):
-            return self.backend.get_username_from_id(closed_by_id)
+            return self.backend.get_user(closed_by_id)
         return None

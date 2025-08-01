@@ -55,9 +55,11 @@ def update_user(
 ) -> dict[str, Any]:
     """Update user."""
     user = backend.get_user(user_id)
-    user_by_username = backend.get_user_by_username(username)
+    user_by_username: Optional[dict[str, Any]] = backend.get_user_by_username(username)
     if user and user_by_username:
-        if user["external_id"] != user_by_username["external_id"]:
+        if isinstance(user_by_username, dict) and user[
+            "external_id"
+        ] != user_by_username.get("external_id"):
             raise ForumV2RequestError("user does not match")
     elif user_by_username:
         raise ForumV2RequestError(f"user already exists with username: {username}")
@@ -141,7 +143,7 @@ def retire_user(
         },
     )
     backend.unsubscribe_all(user_id)
-    backend.retire_all_content(user_id, retired_username)
+    backend.retire_all_content(user_id)
 
     return {"message": "User retired successfully"}
 

@@ -219,11 +219,12 @@ def test_handles_removing_flags(
     stats, username, course_id = original_stats
 
     user = backend.get_user_by_username(username)
+    assert isinstance(user, dict)
     assert user is not None
 
     # Find a comment with existing abuse flaggers
     comment = backend.find_comment(
-        author_id=user["_id"], course_id=course_id, with_abuse_flaggers=True
+        author_id=user.get("_id"), course_id=course_id, with_abuse_flaggers=True
     )
     assert comment is not None
 

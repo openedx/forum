@@ -161,11 +161,6 @@ class AbstractBackend:
         raise NotImplementedError
 
     @staticmethod
-    def get_username_from_id(user_id: str) -> Optional[str]:
-        """Get username from id."""
-        raise NotImplementedError
-
-    @staticmethod
     def validate_object(model: str, obj_id: str) -> Any:
         """Validate object."""
         raise NotImplementedError
@@ -248,7 +243,7 @@ class AbstractBackend:
         raise NotImplementedError
 
     @staticmethod
-    def retire_all_content(user_id: str, username: str) -> None:
+    def retire_all_content(user_id: str) -> None:
         """Retire all content."""
         raise NotImplementedError
 

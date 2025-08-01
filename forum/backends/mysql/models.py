@@ -10,7 +10,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models import Count, Max, Q, QuerySet
+from django.db.models import Count, Exists, F, Max, OuterRef, Q, QuerySet, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ObjectDoesNotExist
@@ -31,6 +31,23 @@ class ForumUser(models.Model):
     default_sort_key: models.CharField[str, str] = models.CharField(
         max_length=25, default="date"
     )
+
+    @classmethod
+    def get_by_user_id(cls, user_id: str) -> dict[str, Any] | None:
+        """
+        Get forum user by user_id.
+
+        Args:
+            user_id: The ID of the user to retrieve.
+
+        Returns:
+            Dictionary representation of the forum user or None if not found.
+        """
+        try:
+            forum_user = cls.objects.get(user__pk=int(user_id))
+            return forum_user.to_dict()
+        except (cls.DoesNotExist, ValueError):
+            return None
 
     def to_dict(self, course_id: Optional[str] = None) -> dict[str, Any]:
         """Return a dictionary representation of the model."""
@@ -430,6 +447,34 @@ class CourseStat(models.Model):
             "last_activity_at": self.last_activity_at,
         }
 
+    @classmethod
+    def update_stats_for_user_and_course(
+        cls, user_id: str, course_id: str, **kwargs: Any
+    ) -> None:
+        """
+        Update stats for a specific user and course.
+
+        Args:
+            user_id: The ID of the user.
+            course_id: The ID of the course.
+            **kwargs: Key-value pairs of stats to update (e.g., threads=1, responses=-1).
+        """
+        user = User.objects.get(pk=user_id)
+        course_stat, created = cls.objects.get_or_create(user=user, course_id=course_id)
+
+        if created:
+            course_stat.active_flags = 0
+            course_stat.inactive_flags = 0
+            course_stat.threads = 0
+            course_stat.responses = 0
+            course_stat.replies = 0
+
+        for key, value in kwargs.items():
+            if hasattr(course_stat, key):
+                setattr(course_stat, key, F(key) + value)
+
+        course_stat.save()
+
     class Meta:
         app_label = "forum"
         unique_together = ("user", "course_id")
@@ -622,6 +667,338 @@ class CommentThread(Content):
         """Get a comment thread model instance."""
         return cls.objects.get(pk=int(thread_id))
 
+    @classmethod
+    def delete_by_id(cls, thread_id: str) -> int:
+        """
+        Delete a thread by its ID.
+
+        Args:
+            thread_id: The ID of the thread to delete.
+
+        Returns:
+            1 if the thread was successfully deleted, 0 if the thread doesn't exist.
+        """
+        try:
+            thread = cls.objects.get(pk=thread_id)
+            thread.delete()
+            return 1
+        except cls.DoesNotExist:
+            return 0
+
+    @classmethod
+    def update_by_id(cls, thread_id: str, **kwargs: Any) -> int:
+        """
+        Update a thread by its ID with the provided data.
+
+        Args:
+            thread_id: The ID of the thread to update.
+            **kwargs: The fields to update and their new values.
+
+        Returns:
+            1 if the thread was successfully updated, 0 if the thread doesn't exist.
+        """
+        thread = cls.objects.get(id=thread_id)
+
+        if "thread_type" in kwargs:
+            thread.thread_type = kwargs["thread_type"]
+        if "title" in kwargs:
+            thread.title = kwargs["title"]
+        if "body" in kwargs:
+            thread.body = kwargs["body"]
+        if "course_id" in kwargs:
+            thread.course_id = kwargs["course_id"]
+        if "anonymous" in kwargs:
+            thread.anonymous = kwargs["anonymous"]
+        if "anonymous_to_peers" in kwargs:
+            thread.anonymous_to_peers = kwargs["anonymous_to_peers"]
+        if "commentable_id" in kwargs:
+            thread.commentable_id = kwargs["commentable_id"]
+        if "author_id" in kwargs and kwargs["author_id"]:
+            thread.author = User.objects.get(pk=int(kwargs["author_id"]))
+        if "closed_by_id" in kwargs and kwargs["closed_by_id"]:
+            thread.closed_by = User.objects.get(pk=int(kwargs["closed_by_id"]))
+        if "pinned" in kwargs:
+            thread.pinned = kwargs["pinned"]
+        if "close_reason_code" in kwargs:
+            thread.close_reason_code = kwargs["close_reason_code"]
+        if "closed" in kwargs:
+            thread.closed = kwargs["closed"]
+            if not kwargs["closed"]:
+                thread.closed_by = None  # type: ignore
+                thread.close_reason_code = None
+        if "endorsed" in kwargs:
+            thread.endorsed = kwargs["endorsed"]
+        if "group_id" in kwargs:
+            thread.group_id = kwargs["group_id"]
+
+        if "abuse_flaggers" in kwargs:
+            existing_abuse_flaggers = AbuseFlagger.objects.filter(
+                content_object_id=thread.pk,
+                content_type=thread.content_type,
+            ).values_list("user_id", flat=True)
+
+            new_abuse_flaggers = [
+                int(user_id)
+                for user_id in kwargs["abuse_flaggers"]
+                if int(user_id) not in existing_abuse_flaggers
+            ]
+
+            for user_id in new_abuse_flaggers:
+                AbuseFlagger.objects.create(
+                    user=User.objects.get(pk=user_id),
+                    content_object_id=thread.pk,
+                    content_type=thread.content_type,
+                )
+
+        if "historical_abuse_flaggers" in kwargs:
+            existing_historical_abuse_flaggers = HistoricalAbuseFlagger.objects.filter(
+                content_object_id=thread.pk,
+                content_type=thread.content_type,
+            ).values_list("user__pk", flat=True)
+
+            new_historical_abuse_flaggers = [
+                int(user_id)
+                for user_id in kwargs["historical_abuse_flaggers"]
+                if int(user_id) not in existing_historical_abuse_flaggers
+            ]
+
+            HistoricalAbuseFlagger.objects.bulk_create(
+                [
+                    HistoricalAbuseFlagger(
+                        user=User.objects.get(pk=user_id),
+                        content_object_id=thread.pk,
+                        content_type=thread.content_type,
+                    )
+                    for user_id in new_historical_abuse_flaggers
+                ]
+            )
+
+        if "editing_user_id" in kwargs and kwargs["editing_user_id"]:
+            EditHistory.objects.create(
+                content_object_id=thread.pk,
+                content_type=thread.content_type,
+                reason_code=kwargs.get("edit_reason_code"),
+                original_body=kwargs.get("original_body"),
+                editor=User.objects.get(pk=kwargs["editing_user_id"]),
+                created_at=timezone.now(),
+            )
+
+        if "votes" in kwargs:
+            up_votes = kwargs["votes"].get("up", [])
+            down_votes = kwargs["votes"].get("down", [])
+            for user_id in up_votes:
+                UserVote.objects.update_or_create(
+                    user=User.objects.get(id=int(user_id)),
+                    content_type=thread.content_type,
+                    content_object_id=thread.pk,
+                    vote=1,
+                )
+            for user_id in down_votes:
+                UserVote.objects.update_or_create(
+                    user=User.objects.get(id=int(user_id)),
+                    content_type=thread.content_type,
+                    content_object_id=thread.pk,
+                    vote=-1,
+                )
+
+        thread.updated_at = timezone.now()
+        thread.save()
+        return 1
+
+    @classmethod
+    def get_by_id(cls, thread_id: str) -> dict[str, Any] | None:
+        """
+        Get a thread by its ID.
+
+        Args:
+            thread_id: The ID of the thread to retrieve.
+
+        Returns:
+            Dictionary representation of the thread or None if not found.
+        """
+        try:
+            thread = cls.objects.get(pk=thread_id)
+            return thread.to_dict()
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def get_filtered_by_query(cls, query: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Get a list of threads that match the given filter criteria.
+
+        Args:
+            query: Dictionary containing filter criteria.
+
+        Returns:
+            List of thread dictionaries that match the filter.
+        """
+        threads = cls.objects.filter(**query)
+        return [thread.to_dict() for thread in threads]
+
+    @classmethod
+    def build_complex_query(
+        cls,
+        thread_ids: list[str],
+        course_id: str,
+        context: str = "course",
+        group_ids: Optional[list[int]] = None,
+        author_id: Optional[str] = None,
+        thread_type: Optional[str] = None,
+        filter_flagged: bool = False,
+        filter_unanswered: bool = False,
+        filter_unresponded: bool = False,
+        user: Optional[Any] = None,
+    ) -> Any:
+        """
+        Build a complex query for threads with various filters.
+
+        Args:
+            thread_ids: List of thread IDs to filter by.
+            course_id: The course ID to filter by.
+            context: The context to filter by (default: "course").
+            group_ids: List of group IDs for group-based filtering.
+            author_id: The ID of the author to filter threads by.
+            thread_type: The type of thread to filter by.
+            filter_flagged: Whether to filter threads flagged for abuse.
+            filter_unanswered: Whether to filter unanswered questions.
+            filter_unresponded: Whether to filter threads with no responses.
+            user: The user making the request for anonymous filtering.
+
+        Returns:
+            Django QuerySet with applied filters.
+        """
+        # Convert thread IDs to integers
+        mysql_thread_ids = []
+        for tid in thread_ids:
+            try:
+                thread_id = int(tid)
+                mysql_thread_ids.append(thread_id)
+            except ValueError:
+                continue
+
+        # Base query
+        base_query = cls.objects.filter(pk__in=mysql_thread_ids, context=context)
+
+        # Group filtering
+        if group_ids:
+            base_query = base_query.filter(
+                Q(group_id__in=group_ids) | Q(group_id__isnull=True)
+            )
+
+        # Author filtering
+        if author_id:
+            base_query = base_query.filter(author__pk=author_id)
+            if user and int(author_id) != user.pk:
+                base_query = base_query.filter(
+                    anonymous=False, anonymous_to_peers=False
+                )
+
+        # Thread type filtering
+        if thread_type:
+            base_query = base_query.filter(thread_type=thread_type)
+
+        # Flagged content filtering
+        if filter_flagged:
+            comment_abuse_flaggers = AbuseFlagger.objects.filter(
+                content_object_id=OuterRef("pk"),
+                content_type=ContentType.objects.get_for_model(Comment),
+            )
+
+            flagged_comments = (
+                Comment.objects.filter(course_id=course_id)
+                .annotate(has_abuse_flaggers=Exists(comment_abuse_flaggers))
+                .filter(has_abuse_flaggers=True)
+                .values_list("comment_thread_id", flat=True)
+            )
+
+            thread_abuse_flaggers = AbuseFlagger.objects.filter(
+                content_object_id=OuterRef("pk"),
+                content_type=ContentType.objects.get_for_model(cls),
+            )
+
+            flagged_threads = (
+                cls.objects.filter(course_id=course_id)
+                .annotate(has_abuse_flaggers=Exists(thread_abuse_flaggers))
+                .filter(has_abuse_flaggers=True)
+                .values_list("id", flat=True)
+            )
+
+            base_query = base_query.filter(
+                pk__in=list(
+                    set(mysql_thread_ids) & set(flagged_comments) | set(flagged_threads)
+                )
+            )
+
+        # Unanswered questions filtering
+        if filter_unanswered:
+            endorsed_threads = Comment.objects.filter(
+                course_id=course_id,
+                parent__isnull=True,
+                endorsed=True,
+            ).values_list("comment_thread_id", flat=True)
+            base_query = base_query.filter(
+                thread_type="question",
+            ).exclude(pk__in=endorsed_threads)
+
+        # Unresponded threads filtering
+        if filter_unresponded:
+            base_query = base_query.annotate(num_comments=Count("comment")).filter(
+                num_comments=0
+            )
+
+        # Add annotations for votes and comments count
+        base_query = base_query.annotate(
+            votes_point=Sum("uservote__vote", distinct=True),
+            comments_count=Count("comment", distinct=True),
+        )
+
+        return base_query
+
+    @classmethod
+    def get_course_id_by_id(cls, thread_id: str) -> str | None:
+        """
+        Get the course_id for a thread by its ID.
+
+        Args:
+            thread_id: The ID of the thread to look up.
+
+        Returns:
+            The course_id of the thread, or None if the thread doesn't exist.
+        """
+        thread = cls.objects.filter(id=thread_id).first()
+        return thread.course_id if thread else None
+
+    @classmethod
+    def create_from_data(cls, data: dict[str, Any]) -> str:
+        """
+        Create a new thread from the provided data.
+
+        Args:
+            data: Dictionary containing thread data.
+
+        Returns:
+            The ID of the created thread as a string.
+        """
+        optional_args = {}
+        if group_id := data.get("group_id"):
+            optional_args["group_id"] = group_id
+
+        new_thread = cls.objects.create(
+            title=data["title"],
+            body=data["body"],
+            course_id=data["course_id"],
+            anonymous=data.get("anonymous", False),
+            anonymous_to_peers=data.get("anonymous_to_peers", False),
+            author=User.objects.get(pk=int(data["author_id"])),
+            commentable_id=data.get("commentable_id", "course"),
+            thread_type=data.get("thread_type", "discussion"),
+            context=data.get("context", "course"),
+            last_activity_at=timezone.now(),
+            **optional_args,
+        )
+        return str(new_thread.pk)
+
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the model."""
         edit_history = []
@@ -792,6 +1169,16 @@ class Comment(Content):
         kwargs.pop("resp_skip", 0)
         kwargs.pop("resp_limit", None)
         return Comment.objects.filter(**kwargs).count()
+
+    @classmethod
+    def delete_by_thread_id(cls, thread_id: str) -> None:
+        """
+        Delete all parent comments (comments without a parent) that belong to a specific thread.
+
+        Args:
+            thread_id: The ID of the thread whose comments should be deleted.
+        """
+        cls.objects.filter(comment_thread__pk=thread_id, parent=None).delete()
 
     def get_parent_ids(self) -> list[str]:
         """Return a list of all parent IDs of a comment."""

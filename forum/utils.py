@@ -244,8 +244,7 @@ def get_sort_criteria(sort_key: str) -> Sequence[tuple[str, int]]:
         if sort_key not in ["created_at", "last_activity_at"]:
             sort_criteria.append(("created_at", -1))
         return sort_criteria
-    else:
-        return []
+    return []
 
 
 def get_trunc_title(title: str) -> str:

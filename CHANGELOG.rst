@@ -16,6 +16,16 @@ Unreleased
 
 *
 
+0.3.3 – 2025-08-12
+******************
+
+Fixed
+=====
+
+* Do not raise runtime errors if an incorrect course ID is provided when
+  checking if the MySQL backend is enabled.
+
+
 0.3.0 – 2025-04-23
 ******************
 

@@ -9,3 +9,5 @@ code-annotations          # provides commands used by the pii_check tox target.
 tox
 mongomock
 Faker
+twine                     # Validates README.rst for usage on PyPI
+build                     # Needed to build the wheel for twine check

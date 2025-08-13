@@ -16,11 +16,24 @@ Unreleased
 
 *
 
+0.3.4 – 2025-08-13
+******************
+
+Added
+-----
+
+* CI check to validate the Python package.
+
+Fixed
+-----
+
+* CHANGELOG header formatting.
+
 0.3.3 – 2025-08-12
 ******************
 
 Fixed
-=====
+-----
 
 * Do not raise runtime errors if an incorrect course ID is provided when
   checking if the MySQL backend is enabled.

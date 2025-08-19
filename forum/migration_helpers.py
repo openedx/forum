@@ -1,6 +1,7 @@
 """Migration commands helper methods."""
 
 from typing import Any
+import logging
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.core.management.base import OutputWrapper
@@ -23,6 +24,9 @@ from forum.models import (
     UserVote,
 )
 from forum.utils import make_aware, get_trunc_title
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_or_none(user_id: Any) -> User | None:
@@ -125,15 +129,39 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
     if not author:
         return
     mongo_thread_id = str(comment_data["comment_thread_id"])
-    mongo_thread = MongoContent.objects.get(mongo_id=mongo_thread_id)
-    thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
+    mongo_thread = MongoContent.objects.filter(mongo_id=mongo_thread_id).first()
+    if not mongo_thread:
+        logger.warning(
+            f"Thread mapping not found for comment {comment_data.get('_id')} "
+            f"(mongo_thread_id={mongo_thread_id})"
+        )
+        return
+    thread = CommentThread.objects.filter(pk=mongo_thread.content_object_id).first()
+    if not thread:
+        logger.warning(
+            f"Skipping comment {comment_data.get('_id')}: thread object not found "
+            f"(content_object_id={mongo_thread.content_object_id})"
+        )
+        return
     parent = None
     if "parent_id" in comment_data and comment_data["parent_id"] != "None":
         parent_id = str(comment_data["parent_id"])
-        mongo_parent_comment = MongoContent.objects.get(mongo_id=parent_id)
+        mongo_parent_comment = MongoContent.objects.filter(mongo_id=parent_id).first()
+        if not mongo_parent_comment:
+            logger.warning(
+                f"Parent mapping not found for comment {comment_data.get('_id')} "
+                f"(parent_id={parent_id})"
+            )
+            return
         parent = Comment.objects.filter(
             id=mongo_parent_comment.content_object_id
         ).first()
+        if not parent:
+            logger.warning(
+                f"Skipping comment {comment_data.get('_id')}: parent object not found "
+                f"(parent_content_object_id={mongo_parent_comment.content_object_id})"
+            )
+            return
 
     mongo_comment, _ = MongoContent.objects.get_or_create(
         mongo_id=str(comment_data["_id"])
@@ -186,8 +214,21 @@ def create_or_update_edit_history(content: dict[str, Any]) -> None:
     """Create or update edit history for a content."""
     edit_history = content.get("edit_history", [])
     content_type = CommentThread if content["_type"] == "CommentThread" else Comment
-    mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
-    content_object = content_type.objects.get(pk=mongo_content.content_object_id)
+    mongo_content = MongoContent.objects.filter(mongo_id=str(content["_id"])).first()
+    if not mongo_content:
+        logger.warning(
+            f"Skipping edit history for content {content.get('_id')}: mapping not found"
+        )
+        return
+    content_object = content_type.objects.filter(
+        pk=mongo_content.content_object_id
+    ).first()
+    if not content_object:
+        logger.warning(
+            f"Skipping edit history for content {content.get('_id')}: target object not found "
+            f"(content_object_id={mongo_content.content_object_id})"
+        )
+        return
     for edit in edit_history:
         editor = get_user_or_none(edit["author_id"])
         if not editor:
@@ -207,8 +248,21 @@ def create_or_update_edit_history(content: dict[str, Any]) -> None:
 def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
     """Create or update abuse flaggers for content."""
     content_type = CommentThread if content["_type"] == "CommentThread" else Comment
-    mongo_content = MongoContent.objects.get(mongo_id=str(content["_id"]))
-    content_object = content_type.objects.get(pk=mongo_content.content_object_id)
+    mongo_content = MongoContent.objects.filter(mongo_id=str(content["_id"])).first()
+    if not mongo_content:
+        logger.warning(
+            f"Skipping abuse flaggers for content {content.get('_id')}: mapping not found"
+        )
+        return
+    content_object = content_type.objects.filter(
+        pk=mongo_content.content_object_id
+    ).first()
+    if not content_object:
+        logger.warning(
+            f"Skipping abuse flaggers for content {content.get('_id')}: target object not found "
+            f"(content_object_id={mongo_content.content_object_id})"
+        )
+        return
     for user_id in content["abuse_flaggers"]:
         user = get_user_or_none(user_id)
         if not user:
@@ -245,8 +299,21 @@ def migrate_subscriptions(db: Database[dict[str, Any]], content_id: str) -> None
         content_type = (
             CommentThread if sub["source_type"] == "CommentThread" else Comment
         )
-        mongo_content = MongoContent.objects.get(mongo_id=str(content_id))
-        content = content_type.objects.get(pk=mongo_content.content_object_id)
+        mongo_content = MongoContent.objects.filter(mongo_id=str(content_id)).first()
+        if not mongo_content:
+            logger.warning(
+                f"Skipping subscription for source {content_id}: mapping not found"
+            )
+            continue
+        content = content_type.objects.filter(
+            pk=mongo_content.content_object_id
+        ).first()
+        if not content:
+            logger.warning(
+                f"Skipping subscription for source {content_id}: target object not found "
+                f"(content_object_id={mongo_content.content_object_id})"
+            )
+            continue
         if content:
             Subscription.objects.update_or_create(
                 subscriber=user,

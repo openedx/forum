@@ -79,3 +79,7 @@ MEILISEARCH_URL = "http://localhost:5700"
 MEILISEARCH_API_KEY = "MEILISEARCH_MASTER_KEY"
 
 USE_TZ = True
+
+TYPESENSE_COLLECTION_PREFIX = "forum_unittest_prefix_"
+TYPESENSE_API_KEY = "example-typesense-api-key"
+TYPESENSE_URLS = ["http://0.0.0.0:8108"]

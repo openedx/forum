@@ -403,6 +403,7 @@ requests==2.32.5
     #   meilisearch
     #   requests-toolbelt
     #   twine
+    #   typesense
 requests-toolbelt==1.0.0
     # via
     #   -r requirements/test.txt
@@ -470,6 +471,8 @@ types-requests==2.31.0.6
     #   djangorestframework-stubs
 types-urllib3==1.26.25.14
     # via types-requests
+typesense==1.1.1
+    # via -r requirements/test.txt
 typing-extensions==4.15.0
     # via
     #   -r requirements/test.txt

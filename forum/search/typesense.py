@@ -33,7 +33,7 @@ def get_typesense_client() -> Client:
         _TYPESENSE_CLIENT = Client(
             {
                 "api_key": settings.TYPESENSE_API_KEY,
-                "nodes": [settings.TYPESENSE_URL],
+                "nodes": settings.TYPESENSE_URLS,
             }
         )
     return _TYPESENSE_CLIENT

@@ -100,7 +100,7 @@ class CommentsIndex:
 
 class CommentThreadsIndex:
     """
-    Common data and operations relating to the comments index.
+    Common data and operations relating to the comment threads index.
     """
 
     model = CommentThread

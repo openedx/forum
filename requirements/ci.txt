@@ -4,7 +4,7 @@
 #
 #    make upgrade
 #
-amqp==5.2.0
+amqp==5.3.1
     # via
     #   -r requirements/quality.txt
     #   kombu
@@ -12,29 +12,30 @@ annotated-types==0.7.0
     # via
     #   -r requirements/quality.txt
     #   pydantic
-asgiref==3.8.1
+asgiref==3.9.1
     # via
     #   -r requirements/quality.txt
     #   django
-    #   django-stubs
-astroid==3.3.5
+astroid==3.3.11
     # via
     #   -r requirements/quality.txt
     #   pylint
     #   pylint-celery
-attrs==24.2.0
+attrs==25.3.0
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-beautifulsoup4==4.12.3
+beautifulsoup4==4.13.5
     # via -r requirements/quality.txt
 billiard==4.2.1
     # via
     #   -r requirements/quality.txt
     #   celery
-black==24.10.0
+black==25.1.0
     # via -r requirements/ci.in
-cachetools==5.5.0
+build==1.3.0
+    # via -r requirements/quality.txt
+cachetools==6.2.0
     # via
     #   -r requirements/quality.txt
     #   tox
@@ -42,11 +43,11 @@ camel-converter[pydantic]==4.0.1
     # via
     #   -r requirements/quality.txt
     #   meilisearch
-celery==5.4.0
+celery==5.5.3
     # via
     #   -r requirements/quality.txt
     #   event-tracking
-certifi==2024.8.30
+certifi==2025.8.3
     # via
     #   -r requirements/quality.txt
     #   elasticsearch
@@ -54,16 +55,17 @@ certifi==2024.8.30
 cffi==1.17.1
     # via
     #   -r requirements/quality.txt
+    #   cryptography
     #   pynacl
 chardet==5.2.0
     # via
     #   -r requirements/quality.txt
     #   tox
-charset-normalizer==3.4.0
+charset-normalizer==3.4.3
     # via
     #   -r requirements/quality.txt
     #   requests
-click==8.1.7
+click==8.2.1
     # via
     #   -r requirements/quality.txt
     #   black
@@ -83,7 +85,7 @@ click-log==0.4.0
     # via
     #   -r requirements/quality.txt
     #   edx-lint
-click-plugins==1.1.1
+click-plugins==1.1.1.2
     # via
     #   -r requirements/quality.txt
     #   celery
@@ -91,7 +93,7 @@ click-repl==0.3.0
     # via
     #   -r requirements/quality.txt
     #   celery
-code-annotations==1.8.0
+code-annotations==2.3.0
     # via
     #   -r requirements/quality.txt
     #   edx-lint
@@ -100,21 +102,25 @@ colorama==0.4.6
     # via
     #   -r requirements/quality.txt
     #   tox
-coverage[toml]==7.6.4
+coverage[toml]==7.10.5
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
-dill==0.3.9
+cryptography==45.0.6
+    # via
+    #   -r requirements/quality.txt
+    #   secretstorage
+dill==0.4.0
     # via
     #   -r requirements/quality.txt
     #   pylint
-distlib==0.3.9
+distlib==0.4.0
     # via
     #   -r requirements/quality.txt
     #   virtualenv
-django==4.2.16
+django==4.2.23
     # via
-    #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
+    #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/quality.txt
     #   django-crum
     #   django-stubs
@@ -131,91 +137,124 @@ django-crum==0.7.9
     #   -r requirements/quality.txt
     #   edx-django-utils
     #   edx-toggles
-django-stubs==5.1.1
+django-stubs==5.2.2
     # via
     #   -r requirements/quality.txt
     #   djangorestframework-stubs
-django-stubs-ext==5.1.1
+django-stubs-ext==5.2.2
     # via
     #   -r requirements/quality.txt
     #   django-stubs
-django-waffle==4.1.0
+django-waffle==5.0.0
     # via
     #   -r requirements/quality.txt
     #   edx-django-utils
     #   edx-toggles
-djangorestframework==3.15.2
+djangorestframework==3.16.1
     # via -r requirements/quality.txt
-djangorestframework-stubs==3.15.1
+djangorestframework-stubs==3.16.2
     # via -r requirements/quality.txt
 dnspython==2.7.0
     # via
     #   -r requirements/quality.txt
     #   pymongo
-edx-ccx-keys==1.3.0
+docutils==0.22
+    # via
+    #   -r requirements/quality.txt
+    #   readme-renderer
+edx-ccx-keys==2.0.2
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-edx-django-utils==7.0.0
+edx-django-utils==8.0.0
     # via
     #   -r requirements/quality.txt
     #   edx-toggles
     #   event-tracking
     #   openedx-events
-edx-lint==5.4.1
+edx-lint==5.6.0
     # via -r requirements/quality.txt
-edx-opaque-keys[django]==2.11.0
+edx-opaque-keys[django]==3.0.0
     # via
     #   -r requirements/quality.txt
     #   edx-ccx-keys
     #   openedx-events
-edx-search==4.1.1
+edx-search==4.1.3
     # via -r requirements/quality.txt
-edx-toggles==5.2.0
+edx-toggles==5.4.1
     # via
     #   -r requirements/quality.txt
     #   edx-search
     #   event-tracking
 elasticsearch==7.13.4
     # via
-    #   -c https://raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
+    #   -c https:/raw.githubusercontent.com/edx/edx-lint/master/edx_lint/files/common_constraints.txt
     #   -r requirements/quality.txt
     #   edx-search
-event-tracking==3.0.0
+event-tracking==3.3.0
     # via
     #   -r requirements/quality.txt
     #   edx-search
-faker==30.8.2
+faker==37.6.0
     # via -r requirements/quality.txt
-fastavro==1.9.7
+fastavro==1.12.0
     # via
     #   -r requirements/quality.txt
     #   openedx-events
-filelock==3.16.1
+filelock==3.19.1
     # via
     #   -r requirements/quality.txt
     #   tox
     #   virtualenv
+id==1.5.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
 idna==3.10
     # via
     #   -r requirements/quality.txt
     #   requests
-iniconfig==2.0.0
+iniconfig==2.1.0
     # via
     #   -r requirements/quality.txt
     #   pytest
-isort==5.13.2
+isort==6.0.1
     # via
     #   -r requirements/quality.txt
     #   pylint
-jinja2==3.1.4
+jaraco-classes==3.4.0
+    # via
+    #   -r requirements/quality.txt
+    #   keyring
+jaraco-context==6.0.1
+    # via
+    #   -r requirements/quality.txt
+    #   keyring
+jaraco-functools==4.3.0
+    # via
+    #   -r requirements/quality.txt
+    #   keyring
+jeepney==0.9.0
+    # via
+    #   -r requirements/quality.txt
+    #   keyring
+    #   secretstorage
+jinja2==3.1.6
     # via
     #   -r requirements/quality.txt
     #   code-annotations
-kombu==5.4.2
+keyring==25.6.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
+kombu==5.5.4
     # via
     #   -r requirements/quality.txt
     #   celery
+markdown-it-py==4.0.0
+    # via
+    #   -r requirements/quality.txt
+    #   rich
 markupsafe==3.0.2
     # via
     #   -r requirements/quality.txt
@@ -224,82 +263,100 @@ mccabe==0.7.0
     # via
     #   -r requirements/quality.txt
     #   pylint
-meilisearch==0.31.6
+mdurl==0.1.2
+    # via
+    #   -r requirements/quality.txt
+    #   markdown-it-py
+meilisearch==0.37.0
     # via
     #   -r requirements/quality.txt
     #   edx-search
-mongomock==4.2.0.post1
+mongomock==4.3.0
     # via -r requirements/quality.txt
-mypy==1.13.0
+more-itertools==10.7.0
+    # via
+    #   -r requirements/quality.txt
+    #   jaraco-classes
+    #   jaraco-functools
+mypy==1.17.1
     # via -r requirements/quality.txt
-mypy-extensions==1.0.0
+mypy-extensions==1.1.0
     # via
     #   -r requirements/quality.txt
     #   black
     #   mypy
-mysqlclient==2.2.5
+mysqlclient==2.2.7
     # via -r requirements/quality.txt
-newrelic==10.2.0
+nh3==0.3.0
     # via
     #   -r requirements/quality.txt
-    #   edx-django-utils
-openedx-atlas==0.6.2
+    #   readme-renderer
+openedx-atlas==0.7.0
     # via -r requirements/quality.txt
-openedx-events==9.15.0
+openedx-events==10.5.0
     # via
     #   -r requirements/quality.txt
     #   event-tracking
-packaging==24.2
+packaging==25.0
     # via
     #   -r requirements/quality.txt
     #   black
+    #   build
+    #   kombu
     #   mongomock
     #   pyproject-api
     #   pytest
     #   tox
+    #   twine
 pathspec==0.12.1
-    # via black
-pbr==6.1.0
     # via
     #   -r requirements/quality.txt
-    #   stevedore
-platformdirs==4.3.6
+    #   black
+    #   mypy
+platformdirs==4.4.0
     # via
     #   -r requirements/quality.txt
     #   black
     #   pylint
     #   tox
     #   virtualenv
-pluggy==1.5.0
+pluggy==1.6.0
     # via
     #   -r requirements/quality.txt
     #   pytest
+    #   pytest-cov
     #   tox
-prompt-toolkit==3.0.48
+prompt-toolkit==3.0.52
     # via
     #   -r requirements/quality.txt
     #   click-repl
-psutil==6.1.0
+psutil==7.0.0
     # via
     #   -r requirements/quality.txt
     #   edx-django-utils
-pycodestyle==2.12.1
+pycodestyle==2.14.0
     # via -r requirements/quality.txt
 pycparser==2.22
     # via
     #   -r requirements/quality.txt
     #   cffi
-pydantic==2.9.2
+pydantic==2.11.7
     # via
     #   -r requirements/quality.txt
     #   camel-converter
-pydantic-core==2.23.4
+pydantic-core==2.33.2
     # via
     #   -r requirements/quality.txt
     #   pydantic
 pydocstyle==6.3.0
     # via -r requirements/quality.txt
-pylint==3.3.1
+pygments==2.19.2
+    # via
+    #   -r requirements/quality.txt
+    #   pytest
+    #   readme-renderer
+    #   rich
+pylint==3.3.8
     # via
     #   -r requirements/quality.txt
     #   edx-lint
@@ -314,12 +371,12 @@ pylint-django==2.6.1
     # via
     #   -r requirements/quality.txt
     #   edx-lint
-pylint-plugin-utils==0.8.2
+pylint-plugin-utils==0.9.0
     # via
     #   -r requirements/quality.txt
     #   pylint-celery
     #   pylint-django
-pymongo==4.4.0
+pymongo==4.14.1
     # via
     #   -r requirements/quality.txt
     #   edx-opaque-keys
@@ -328,29 +385,32 @@ pynacl==1.5.0
     # via
     #   -r requirements/quality.txt
     #   edx-django-utils
-pyproject-api==1.8.0
+pyproject-api==1.9.1
     # via
     #   -r requirements/quality.txt
     #   tox
-pytest==8.3.3
+pyproject-hooks==1.2.0
+    # via
+    #   -r requirements/quality.txt
+    #   build
+pytest==8.4.1
     # via
     #   -r requirements/quality.txt
     #   pytest-cov
     #   pytest-django
-pytest-cov==6.0.0
+pytest-cov==6.2.1
     # via -r requirements/quality.txt
-pytest-django==4.9.0
+pytest-django==4.11.1
     # via -r requirements/quality.txt
 python-dateutil==2.9.0.post0
     # via
     #   -r requirements/quality.txt
     #   celery
-    #   faker
 python-slugify==8.0.4
     # via
     #   -r requirements/quality.txt
     #   code-annotations
-pytz==2024.2
+pytz==2025.2
     # via
     #   -r requirements/quality.txt
     #   event-tracking
@@ -359,35 +419,58 @@ pyyaml==6.0.2
     # via
     #   -r requirements/quality.txt
     #   code-annotations
-requests==2.32.3
+readme-renderer==44.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
+requests==2.32.5
     # via
     #   -r requirements/quality.txt
     #   djangorestframework-stubs
+    #   id
     #   meilisearch
-sentinels==1.0.0
+    #   requests-toolbelt
+    #   twine
+requests-toolbelt==1.0.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
+rfc3986==2.0.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
+rich==14.1.0
+    # via
+    #   -r requirements/quality.txt
+    #   twine
+secretstorage==3.3.3
+    # via
+    #   -r requirements/quality.txt
+    #   keyring
+sentinels==1.1.1
     # via
     #   -r requirements/quality.txt
     #   mongomock
-six==1.16.0
+six==1.17.0
     # via
     #   -r requirements/quality.txt
     #   edx-ccx-keys
     #   edx-lint
     #   event-tracking
     #   python-dateutil
-snowballstemmer==2.2.0
+snowballstemmer==3.0.1
     # via
     #   -r requirements/quality.txt
     #   pydocstyle
-soupsieve==2.6
+soupsieve==2.8
     # via
     #   -r requirements/quality.txt
     #   beautifulsoup4
-sqlparse==0.5.1
+sqlparse==0.5.3
     # via
     #   -r requirements/quality.txt
     #   django
-stevedore==5.3.0
+stevedore==5.5.0
     # via
     #   -r requirements/quality.txt
     #   code-annotations
@@ -397,19 +480,21 @@ text-unidecode==1.3
     # via
     #   -r requirements/quality.txt
     #   python-slugify
-tomlkit==0.13.2
+tomlkit==0.13.3
     # via
     #   -r requirements/quality.txt
     #   pylint
-tox==4.23.2
+tox==4.28.4
     # via -r requirements/quality.txt
-types-beautifulsoup4==4.12.0.20241020
+twine==6.1.0
     # via -r requirements/quality.txt
-types-html5lib==1.1.11.20241018
+types-beautifulsoup4==4.12.0.20250516
+    # via -r requirements/quality.txt
+types-html5lib==1.1.11.20250809
     # via
     #   -r requirements/quality.txt
     #   types-beautifulsoup4
-types-pyyaml==6.0.12.20240917
+types-pyyaml==6.0.12.20250822
     # via
     #   -r requirements/quality.txt
     #   django-stubs
@@ -422,34 +507,40 @@ types-urllib3==1.26.25.14
     # via
     #   -r requirements/quality.txt
     #   types-requests
-typing-extensions==4.12.2
+typing-extensions==4.15.0
     # via
     #   -r requirements/quality.txt
+    #   beautifulsoup4
     #   django-stubs
     #   django-stubs-ext
     #   djangorestframework-stubs
     #   edx-opaque-keys
-    #   faker
     #   mypy
     #   pydantic
     #   pydantic-core
-tzdata==2024.2
+    #   typing-inspection
+typing-inspection==0.4.1
     # via
     #   -r requirements/quality.txt
-    #   celery
+    #   pydantic
+tzdata==2025.2
+    # via
+    #   -r requirements/quality.txt
+    #   faker
     #   kombu
 urllib3==1.26.20
     # via
     #   -r requirements/quality.txt
     #   elasticsearch
     #   requests
+    #   twine
 vine==5.1.0
     # via
     #   -r requirements/quality.txt
     #   amqp
     #   celery
     #   kombu
-virtualenv==20.27.1
+virtualenv==20.34.0
     # via
     #   -r requirements/quality.txt
     #   tox
@@ -457,3 +548,6 @@ wcwidth==0.2.13
     # via
     #   -r requirements/quality.txt
     #   prompt-toolkit
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

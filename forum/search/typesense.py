@@ -7,7 +7,9 @@ from typing import Any, Optional
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.paginator import Paginator
-from typesense import Client
+
+# mypy complains: 'Module "typesense" does not explicitly export attribute "Client"'
+from typesense import Client  # type: ignore
 from typesense.types.collection import CollectionCreateSchema
 from typesense.types.document import DocumentSchema, SearchParameters
 from typesense.exceptions import ObjectNotFound
@@ -39,141 +41,187 @@ def get_typesense_client() -> Client:
     return _TYPESENSE_CLIENT
 
 
-class CommentsIndex:
+def quote_filter_value(value: str) -> str:
     """
-    Common data and operations relating to the comments index.
+    Sanitize and safely quote a value for use in a Typesense filter.
+
+    https://typesense.org/docs/guide/tips-for-filtering.html#escaping-special-characters
     """
+    return "`" + value.replace("`", "") + "`"
 
-    model = Comment
 
-    @staticmethod
-    def name() -> str:
-        """
-        Return the Typesense index name for the index.
-        """
-        return settings.TYPESENSE_COLLECTION_PREFIX + "comments"
+def collection_name() -> str:
+    """
+    Generate the collection name to use in Typesense.
+    """
+    return settings.TYPESENSE_COLLECTION_PREFIX + "forum"
 
-    @classmethod
-    def schema(cls) -> CollectionCreateSchema:
-        return {
-            "name": cls.name(),
-            "fields": [
-                {"name": "course_id", "type": "string"},
-                {"name": "comment_thread_id", "type": "string"},
-                {"name": "body", "type": "string"},
-            ],
-        }
 
-    @staticmethod
-    def build_document(doc_id: str | int, data: dict[str, Any]) -> DocumentSchema:
-        """
-        Build a Typesense document for this index.
-        """
-        # NOTE: Comments have no commentable_id or title, and the context is hardcoded to "course".
-        return {
-            "id": str(doc_id),
-            "course_id": str(data.get("course_id", "")),
-            "comment_thread_id": str(data.get("comment_thread_id", "")),
-            "body": (
+def collection_schema() -> CollectionCreateSchema:
+    """
+    The schema to use for creating the collection.
+    """
+    return {
+        "name": collection_name(),
+        # NOTE: there's always an implicit "id" field
+        "fields": [
+            {"name": "thread_id", "type": "string"},
+            {"name": "course_id", "type": "string"},
+            {"name": "commentable_id", "type": "string"},
+            {"name": "context", "type": "string"},
+            {"name": "text", "type": "string"},
+        ],
+    }
+
+
+def expected_full_collection_schema() -> dict[str, Any]:
+    """
+    What is expected to be the full collection schema.
+
+    Use this to validate the actual schema from the server.
+    """
+    return {
+        "default_sorting_field": "",
+        "enable_nested_fields": False,
+        "fields": [
+            {
+                "facet": False,
+                "index": True,
+                "infix": False,
+                "locale": "",
+                "name": "thread_id",
+                "optional": False,
+                "sort": False,
+                "stem": False,
+                "stem_dictionary": "",
+                "store": True,
+                "type": "string",
+            },
+            {
+                "facet": False,
+                "index": True,
+                "infix": False,
+                "locale": "",
+                "name": "course_id",
+                "optional": False,
+                "sort": False,
+                "stem": False,
+                "stem_dictionary": "",
+                "store": True,
+                "type": "string",
+            },
+            {
+                "facet": False,
+                "index": True,
+                "infix": False,
+                "locale": "",
+                "name": "commentable_id",
+                "optional": False,
+                "sort": False,
+                "stem": False,
+                "stem_dictionary": "",
+                "store": True,
+                "type": "string",
+            },
+            {
+                "facet": False,
+                "index": True,
+                "infix": False,
+                "locale": "",
+                "name": "context",
+                "optional": False,
+                "sort": False,
+                "stem": False,
+                "stem_dictionary": "",
+                "store": True,
+                "type": "string",
+            },
+            {
+                "facet": False,
+                "index": True,
+                "infix": False,
+                "locale": "",
+                "name": "text",
+                "optional": False,
+                "sort": False,
+                "stem": False,
+                "stem_dictionary": "",
+                "store": True,
+                "type": "string",
+            },
+        ],
+        "name": collection_name(),
+        "symbols_to_index": [],
+        "token_separators": [],
+    }
+
+
+def document_from_thread(doc_id: str | int, data: dict[str, Any]) -> DocumentSchema:
+    """
+    Build a Typesense document from a thread's data.
+    """
+    return {
+        "id": f"thread-{doc_id}",
+        "thread_id": str(doc_id),
+        "course_id": str(data.get("course_id", "")),
+        "commentable_id": str(data.get("commentable_id", "")),
+        "context": str(data.get("context", "")),
+        "text": "{}\n{}".format(
+            str(data.get("title", "")),
+            (
                 BeautifulSoup(data["body"], features="html.parser").get_text()
                 if data.get("body")
                 else ""
             ),
-        }
-
-    @staticmethod
-    def build_search_parameters(
-        *, search_text: str, course_id: str | None
-    ) -> SearchParameters:
-        """
-        Build Typesense search parameters for this index.
-        """
-        return {
-            "q": search_text,
-            "query_by": "body",
-            "filter_by": (
-                f"course_id:={quote_filter_value(course_id)}" if course_id else ""
-            ),
-            "per_page": FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT,
-        }
+        ),
+    }
 
 
-class CommentThreadsIndex:
+def document_from_comment(doc_id: str | int, data: dict[str, Any]) -> DocumentSchema:
     """
-    Common data and operations relating to the comment threads index.
+    Build a Typesense document from a comment's data.
     """
-
-    model = CommentThread
-
-    @staticmethod
-    def name() -> str:
-        """
-        Return the Typesense index name for the index.
-        """
-        return settings.TYPESENSE_COLLECTION_PREFIX + "comment_threads"
-
-    @classmethod
-    def schema(cls) -> CollectionCreateSchema:
-        return {
-            "name": cls.name(),
-            "fields": [
-                {"name": "course_id", "type": "string"},
-                {"name": "commentable_id", "type": "string"},
-                {"name": "context", "type": "string"},
-                {"name": "title", "type": "string"},
-                {"name": "body", "type": "string"},
-            ],
-        }
-
-    @staticmethod
-    def build_document(doc_id: str | int, data: dict[str, Any]) -> DocumentSchema:
-        """
-        Build a Typesense document for this index.
-        """
-        return {
-            "id": str(doc_id),
-            "course_id": str(data.get("course_id", "")),
-            "commentable_id": str(data.get("commentable_id", "")),
-            "context": str(data.get("context", "")),
-            "title": str(data.get("title", "")),
-            "body": (
-                BeautifulSoup(data["body"], features="html.parser").get_text()
-                if data.get("body")
-                else ""
-            ),
-        }
-
-    @staticmethod
-    def build_search_parameters(
-        *,
-        search_text: str,
-        course_id: str | None,
-        context: str,
-        commentable_ids: list[str] | None,
-    ) -> SearchParameters:
-        """
-        Build Typesense search parameters for this index.
-        """
-        # Context is always a single word, so we can use the faster `:` operator, without sacrificing accuracy.
-        filters = [f"context:{quote_filter_value(context)}"]
-        if commentable_ids:
-            safe_ids = ", ".join(quote_filter_value(value) for value in commentable_ids)
-            filters.append(f"commentable_ids:[{safe_ids}]")
-        if course_id:
-            filters.append(f"course_id:={quote_filter_value(course_id)}")
-
-        return {
-            "q": search_text,
-            "query_by": "title,body",
-            "filter_by": " && ".join(filters),
-            "per_page": FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT,
-        }
+    # NOTE: Comments have no commentable_id or title, and the context is hardcoded to "course".
+    return {
+        "id": f"comment-{doc_id}",
+        "thread_id": str(data.get("comment_thread_id", "")),
+        "course_id": str(data.get("course_id", "")),
+        "commentable_id": "",
+        "context": str(data.get("context", "")),
+        "text": (
+            BeautifulSoup(data["body"], features="html.parser").get_text()
+            if data.get("body")
+            else ""
+        ),
+    }
 
 
-INDICES: dict[str, type[CommentsIndex] | type[CommentThreadsIndex]] = {
-    "comments": CommentsIndex,
-    "comment_threads": CommentThreadsIndex,
-}
+def build_search_parameters(
+    *,
+    search_text: str,
+    course_id: str | None,
+    context: str,
+    commentable_ids: list[str] | None,
+) -> SearchParameters:
+    """
+    Build Typesense search parameters for searching the index.
+    """
+    # Context is always a single word, so we can use the faster `:` operator, without sacrificing accuracy.
+    filters = [f"context:{quote_filter_value(context)}"]
+
+    if commentable_ids:
+        safe_ids = ", ".join(quote_filter_value(value) for value in commentable_ids)
+        filters.append(f"commentable_ids:[{safe_ids}]")
+
+    if course_id:
+        filters.append(f"course_id:={quote_filter_value(course_id)}")
+
+    return {
+        "q": search_text,
+        "query_by": "text",
+        "filter_by": " && ".join(filters),
+        "per_page": FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT,
+    }
 
 
 class TypesenseDocumentBackend(BaseDocumentSearchBackend):
@@ -188,9 +236,15 @@ class TypesenseDocumentBackend(BaseDocumentSearchBackend):
         Index a document in Typesense.
         """
         client = get_typesense_client()
-        index = INDICES[index_name]
-        typesense_document = index.build_document(doc_id, document)
-        client.collections[index.name()].documents.upsert(typesense_document)
+
+        if index_name == "comments":
+            typesense_document = document_from_comment(doc_id, document)
+        elif index_name == "comment_threads":
+            typesense_document = document_from_thread(doc_id, document)
+        else:
+            raise NotImplementedError(f"unknown index name: {index_name}")
+
+        client.collections[collection_name()].documents.upsert(typesense_document)
 
     def update_document(
         self, index_name: str, doc_id: str | int, update_data: dict[str, Any]
@@ -205,8 +259,14 @@ class TypesenseDocumentBackend(BaseDocumentSearchBackend):
         Delete a document from Typesense.
         """
         client = get_typesense_client()
-        index = INDICES[index_name]
-        client.collections[index.name()].documents[str(doc_id)].delete(
+        if index_name == "comments":
+            typesense_doc_id = f"comment-{doc_id}"
+        elif index_name == "comment_threads":
+            typesense_doc_id = f"thread-{doc_id}"
+        else:
+            raise NotImplementedError(f"unknown index name: {index_name}")
+
+        client.collections[collection_name()].documents[typesense_doc_id].delete(
             delete_parameters={"ignore_not_found": True},
         )
 
@@ -225,18 +285,18 @@ class TypesenseIndexBackend(BaseIndexSearchBackend):
         If force_new_index is True, the indexes will be dropped before being recreated.
         """
         client = get_typesense_client()
-        for index in INDICES.values():
-            exists: bool = True
-            try:
-                client.collections[index.name()].retrieve()
-            except ObjectNotFound:
-                exists = False
+        name = collection_name()
+        exists: bool = True
+        try:
+            client.collections[name].retrieve()
+        except ObjectNotFound:
+            exists = False
 
-            if force_new_index and exists:
-                client.collections[index.name()].delete()
+        if force_new_index and exists:
+            client.collections[name].delete()
 
-            if force_new_index or not exists:
-                client.collections.create(index.schema())
+        if force_new_index or not exists:
+            client.collections.create(collection_schema())
 
     def rebuild_indices(
         self, batch_size: int = 500, extra_catchup_minutes: int = 5
@@ -252,18 +312,28 @@ class TypesenseIndexBackend(BaseIndexSearchBackend):
         """
         client = get_typesense_client()
         self.initialize_indices(force_new_index=True)
-        for index in INDICES.values():
-            paginator = Paginator(index.model.objects.all(), per_page=batch_size)
+
+        for model, document_builder in [
+            (CommentThread, document_from_thread),
+            (Comment, document_from_comment),
+        ]:
+            paginator = Paginator(
+                model.objects.order_by("pk").all(), per_page=batch_size
+            )
             for page_number in paginator.page_range:
                 page = paginator.get_page(page_number)
                 documents = [
-                    index.build_document(obj.pk, obj.doc_to_hash())
+                    document_builder(obj.pk, obj.doc_to_hash())
                     for obj in page.object_list
                 ]
                 if documents:
-                    client.collections[index.name()].documents.import_(
+                    response = client.collections[collection_name()].documents.import_(
                         documents, {"action": "upsert"}
                     )
+                    if not all(result["success"] for result in response):
+                        raise ValueError(
+                            f"Errors while importing documents to Typesense collection: {response}"
+                        )
 
     def validate_indices(self) -> None:
         """
@@ -272,16 +342,15 @@ class TypesenseIndexBackend(BaseIndexSearchBackend):
         Raise an exception if any do not exist or if any are not valid.
         """
         client = get_typesense_client()
-        for index in INDICES.values():
-            collection = client.collections[index.name()].retrieve()
-            # TODO: collection returns more information than the initial create schema,
-            # so we need a better comparison here; this is currently broken
-            if collection != index.schema():
-                print(f"Expected schema: {index.schema()}")
-                print(f"Found schema: {collection}")
-                raise AssertionError(
-                    f"Collection {index.name()} exists, but schema does not match expected."
-                )
+        collection = client.collections[collection_name()].retrieve()
+        collection.pop("created_at")  # type: ignore
+        collection.pop("num_documents")  # type: ignore
+        if collection != expected_full_collection_schema():
+            print(f"Expected schema: {expected_full_collection_schema()}")
+            print(f"Found schema: {collection}")
+            raise AssertionError(
+                f"Collection {collection_name()} exists, but schema does not match expected."
+            )
 
     def refresh_indices(self) -> None:
         """
@@ -293,18 +362,9 @@ class TypesenseIndexBackend(BaseIndexSearchBackend):
 
     def delete_unused_indices(self) -> int:
         """
-        Noop on Typesense.
+        Noop for this implementation.
         """
         return 0
-
-
-def quote_filter_value(value: str) -> str:
-    """
-    Sanitize and safely quote a value for use in a Typesense filter.
-
-    https://typesense.org/docs/guide/tips-for-filtering.html#escaping-special-characters
-    """
-    return "`" + value.replace("`", "") + "`"
 
 
 class TypesenseThreadSearchBackend(BaseThreadSearchBackend):
@@ -328,31 +388,18 @@ class TypesenseThreadSearchBackend(BaseThreadSearchBackend):
         Retrieve thread IDs based on search criteria.
         """
         client = get_typesense_client()
-        thread_ids: set[str] = set()
 
-        # All comments have "course" as their context, and none of them have a commentable_id.
-        if context == "course" and not commentable_ids:
-            comment_results = client.collections[CommentsIndex.name()].documents.search(
-                CommentsIndex.build_search_parameters(
-                    search_text=search_text, course_id=course_id
-                )
-            )
-            for hit in comment_results.get("hits", []):
-                thread_ids.add(hit["document"]["comment_thread_id"])
-
-        thread_results = client.collections[
-            CommentThreadsIndex.name()
-        ].documents.search(
-            CommentThreadsIndex.build_search_parameters(
-                search_text=search_text,
-                course_id=course_id,
-                context=context,
-                commentable_ids=commentable_ids,
-            )
+        params = build_search_parameters(
+            search_text=search_text,
+            course_id=course_id,
+            context=context,
+            commentable_ids=commentable_ids,
         )
-        for hit in thread_results.get("hits", []):
-            thread_ids.add(hit["document"]["id"])
 
+        results = client.collections[collection_name()].documents.search(params)
+        thread_ids: set[str] = {
+            hit["document"]["thread_id"] for hit in results.get("hits", [])  # type: ignore
+        }
         return list(thread_ids)
 
     def get_suggested_text(self, search_text: str) -> Optional[str]:
@@ -362,8 +409,7 @@ class TypesenseThreadSearchBackend(BaseThreadSearchBackend):
         :param search_text: Text to search for suggestions
         :return: Suggested text or None
         """
-        # TODO: https://typesense.org/docs/guide/query-suggestions.html
-        # TODO: if this is implemented, do we need to also implement get_thread_ids_with_corrected_text?
+        # Not implemented, so no suggestions.
         return None
 
 

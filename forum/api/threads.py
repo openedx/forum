@@ -212,6 +212,7 @@ def update_thread(
     close_reason_code: Optional[str] = None,
     closing_user_id: Optional[str] = None,
     endorsed: Optional[bool] = None,
+    read: Optional[bool] = None,
 ) -> dict[str, Any]:
     """
     Update the thread for the given thread_id.
@@ -246,6 +247,7 @@ def update_thread(
         "close_reason_code": close_reason_code,
         "closing_user_id": closing_user_id,
         "endorsed": endorsed,
+        "read": read,
     }
     update_thread_data: dict[str, Any] = _get_thread_data_from_request_data(data)
 

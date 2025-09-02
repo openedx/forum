@@ -14,7 +14,15 @@ Change Log
 Unreleased
 **********
 
-*
+* 0.3.5
+
+0.3.5 – 2025-09-02
+******************
+
+Fixed
+-----
+
+* update_thread method to take in "read" param
 
 0.3.4 – 2025-08-13
 ******************

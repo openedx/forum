@@ -263,7 +263,7 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
             f"(content_object_id={mongo_content.content_object_id})"
         )
         return
-    for user_id in content["abuse_flaggers"]:
+    for user_id in content.get("abuse_flaggers", []):
         user = get_user_or_none(user_id)
         if not user:
             continue
@@ -275,7 +275,7 @@ def create_or_update_abuse_flaggers(content: dict[str, Any]) -> None:
                 "flagged_at": timezone.now(),
             },
         )
-    for user_id in content["historical_abuse_flaggers"]:
+    for user_id in content.get("historical_abuse_flaggers", []):
         user = get_user_or_none(user_id)
         if not user:
             continue

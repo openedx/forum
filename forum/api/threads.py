@@ -262,6 +262,11 @@ def update_thread(
             )
     backend.update_thread(thread_id, **update_thread_data)
     thread = backend.get_thread(thread_id)
+    if thread is None:
+        log.error(
+            "Forumv2RequestError for update thread request - retrieving updated thread to send in response."
+        )
+        raise ForumV2RequestError(f"Thread no longer exists with Id: {thread_id}")
 
     try:
         return prepare_thread_api_response(

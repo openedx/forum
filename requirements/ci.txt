@@ -364,6 +364,7 @@ requests==2.32.3
     #   -r requirements/quality.txt
     #   djangorestframework-stubs
     #   meilisearch
+    #   typesense
 sentinels==1.0.0
     # via
     #   -r requirements/quality.txt
@@ -422,6 +423,8 @@ types-urllib3==1.26.25.14
     # via
     #   -r requirements/quality.txt
     #   types-requests
+typesense==1.1.1
+    # via -r requirements/quality.txt
 typing-extensions==4.12.2
     # via
     #   -r requirements/quality.txt

@@ -2,14 +2,13 @@
 Typesense backend for searching comments and threads.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.paginator import Paginator
 
-# mypy complains: 'Module "typesense" does not explicitly export attribute "Client"'
-from typesense import Client  # type: ignore
+from typesense.client import Client
 from typesense.types.collection import CollectionCreateSchema
 from typesense.types.document import DocumentSchema, SearchParameters
 from typesense.exceptions import ObjectNotFound
@@ -79,75 +78,44 @@ def expected_full_collection_schema() -> dict[str, Any]:
     What is expected to be the full collection schema.
 
     Use this to validate the actual schema from the server.
+    Note that Typesense may add new keys to the schema;
+    this is ok, and validation should still pass.
     """
+    field_defaults = {
+        "facet": False,
+        "index": True,
+        "infix": False,
+        "locale": "",
+        "optional": False,
+        "sort": False,
+        "stem": False,
+        "stem_dictionary": "",
+        "store": True,
+        "type": "string",
+    }
     return {
         "default_sorting_field": "",
         "enable_nested_fields": False,
         "fields": [
             {
-                "facet": False,
-                "index": True,
-                "infix": False,
-                "locale": "",
+                **field_defaults,
                 "name": "thread_id",
-                "optional": False,
-                "sort": False,
-                "stem": False,
-                "stem_dictionary": "",
-                "store": True,
-                "type": "string",
             },
             {
-                "facet": False,
-                "index": True,
-                "infix": False,
-                "locale": "",
+                **field_defaults,
                 "name": "course_id",
-                "optional": False,
-                "sort": False,
-                "stem": False,
-                "stem_dictionary": "",
-                "store": True,
-                "type": "string",
             },
             {
-                "facet": False,
-                "index": True,
-                "infix": False,
-                "locale": "",
+                **field_defaults,
                 "name": "commentable_id",
-                "optional": False,
-                "sort": False,
-                "stem": False,
-                "stem_dictionary": "",
-                "store": True,
-                "type": "string",
             },
             {
-                "facet": False,
-                "index": True,
-                "infix": False,
-                "locale": "",
+                **field_defaults,
                 "name": "context",
-                "optional": False,
-                "sort": False,
-                "stem": False,
-                "stem_dictionary": "",
-                "store": True,
-                "type": "string",
             },
             {
-                "facet": False,
-                "index": True,
-                "infix": False,
-                "locale": "",
+                **field_defaults,
                 "name": "text",
-                "optional": False,
-                "sort": False,
-                "stem": False,
-                "stem_dictionary": "",
-                "store": True,
-                "type": "string",
             },
         ],
         "name": collection_name(),
@@ -206,7 +174,9 @@ def build_search_parameters(
     """
     Build Typesense search parameters for searching the index.
     """
-    # Context is always a single word, so we can use the faster `:` operator, without sacrificing accuracy.
+    # `context` is always a single word,
+    # so we can gain performance without losing accuracy by using the faster `:` (non-exact) operator.
+    # See https://typesense.org/docs/29.0/api/search.html#filter-parameters for more information.
     filters = [f"context:{quote_filter_value(context)}"]
 
     if commentable_ids:
@@ -340,17 +310,65 @@ class TypesenseIndexBackend(BaseIndexSearchBackend):
         Check if the indices exist and are valid.
 
         Raise an exception if any do not exist or if any are not valid.
+        Note that the validation is lengthy,
+        because Typesense may add new keys to the schema.
+        This is fine - we only want to assert that keys we know about are set as expected.
+        There are also some fields in the retrieved schema we don't care about - eg. 'created_at'
         """
         client = get_typesense_client()
-        collection = client.collections[collection_name()].retrieve()
-        collection.pop("created_at")  # type: ignore
-        collection.pop("num_documents")  # type: ignore
-        if collection != expected_full_collection_schema():
-            print(f"Expected schema: {expected_full_collection_schema()}")
-            print(f"Found schema: {collection}")
-            raise AssertionError(
-                f"Collection {collection_name()} exists, but schema does not match expected."
+        # cast to a wider type, because we want to use it in a more flexible way than TypedDict normally allows.
+        actual_schema = cast(
+            dict[str, Any], client.collections[collection_name()].retrieve()
+        )
+        expected_schema = expected_full_collection_schema()
+        errors: list[str] = []
+
+        expected_field_names = set(
+            map(lambda field: field["name"], expected_schema["fields"])
+        )
+        actual_field_names = set(
+            map(lambda field: field["name"], actual_schema["fields"])
+        )
+
+        if missing_fields := expected_field_names - actual_field_names:
+            errors.append(
+                f"ERROR: '{collection_name()}' collection schema 'fields' has missing field(s): {missing_fields}."
             )
+
+        if extra_fields := actual_field_names - expected_field_names:
+            errors.append(
+                f"ERROR: '{collection_name()}' collection schema 'fields' "
+                f"has unexpected extra field(s): {extra_fields}."
+            )
+
+        if actual_field_names == expected_field_names:
+            for expected_field, actual_field in zip(
+                sorted(expected_schema["fields"], key=lambda field: field["name"]),
+                sorted(actual_schema["fields"], key=lambda field: field["name"]),
+            ):
+                for key, expected_value in expected_field.items():
+                    if expected_value != actual_field[key]:
+                        errors.append(
+                            f"ERROR: in collection '{collection_name()}' fields, field '{expected_field['name']}', "
+                            f"key '{key}' failed to validate. "
+                            f"Expected: '{expected_value}', actual '{actual_field[key]}'."
+                        )
+
+        for key, expected_value in expected_schema.items():
+            if key == "fields":
+                # we've already validated fields separately above
+                continue
+
+            if expected_value != actual_schema[key]:
+                errors.append(
+                    f"ERROR: in collection '{collection_name()}', key '{key}' failed to validate. "
+                    f"Expected: '{expected_value}', actual '{actual_schema[key]}'."
+                )
+
+        if errors:
+            for error in errors:
+                print(error)
+            raise AssertionError("\n".join(errors))
 
     def refresh_indices(self) -> None:
         """

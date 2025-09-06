@@ -1543,7 +1543,7 @@ class MongoBackend(AbstractBackend):
         raise ValueError("Comment doesn't have the thread.")
 
     @staticmethod
-    def get_user(user_id: str) -> dict[str, Any] | None:
+    def get_user(user_id: str, get_full_dict: bool = True) -> dict[str, Any] | None:
         """Return user from user_id."""
         return Users().get(user_id)
 
@@ -1595,13 +1595,18 @@ class MongoBackend(AbstractBackend):
         return CommentThread().update(thread_id, **kwargs)
 
     @staticmethod
-    def get_filtered_threads(query: dict[str, Any]) -> list[dict[str, Any]]:
+    def get_filtered_threads(
+        query: dict[str, Any], ids_only: bool = False
+    ) -> list[dict[str, Any]]:
         """Return threads from filter."""
         thread_filter = {
             "_type": {"$in": [CommentThread().content_type]},
             "course_id": query.get("course_id"),
         }
-        return list(CommentThread().find(thread_filter))
+        threads = list(CommentThread().find(thread_filter))
+        if ids_only:
+            return [{"_id": thread["_id"]} for thread in threads]
+        return threads
 
     @staticmethod
     def update_user(user_id: str, data: dict[str, Any]) -> int:

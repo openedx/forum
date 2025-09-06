@@ -1112,13 +1112,11 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def filter_standalone_threads(comment_ids: list[str]) -> list[str]:
         """Filter out standalone threads from the list of threads."""
-        comments = Comment.objects.filter(pk__in=comment_ids)
-        filtered_threads = [
-            comment.comment_thread
-            for comment in comments
-            if comment.comment_thread.context != "standalone"
-        ]
-        return [str(thread.pk) for thread in filtered_threads]
+        return list(
+            CommentThread.objects.filter(comment__pk__in=comment_ids)
+            .exclude(context="standalone")
+            .values_list("pk", flat=True)
+        )
 
     @classmethod
     def user_to_hash(
@@ -1131,12 +1129,10 @@ class MySQLBackend(AbstractBackend):
         forum_user = ForumUser.objects.get(user__pk=user_id)
         if params is None:
             params = {}
-
-        user_data = forum_user.to_dict()
         hash_data = {}
-        hash_data["username"] = user_data["username"]
-        hash_data["external_id"] = user_data["external_id"]
-        hash_data["id"] = user_data["external_id"]
+        hash_data["username"] = forum_user.user.username
+        hash_data["external_id"] = forum_user.user.pk
+        hash_data["id"] = forum_user.user.pk
 
         if params.get("complete"):
             subscribed_thread_ids = cls.find_subscribed_threads(user_id)
@@ -1151,7 +1147,7 @@ class MySQLBackend(AbstractBackend):
                     "id": user_id,
                     "upvoted_ids": upvoted_ids,
                     "downvoted_ids": downvoted_ids,
-                    "default_sort_key": user_data["default_sort_key"],
+                    "default_sort_key": forum_user.default_sort_key,
                 }
             )
 
@@ -1699,10 +1695,13 @@ class MySQLBackend(AbstractBackend):
         raise ValueError("Comment doesn't have the thread.")
 
     @staticmethod
-    def get_user(user_id: str) -> dict[str, Any] | None:
+    def get_user(user_id: str, get_full_dict: bool = True) -> dict[str, Any] | None:
         """Return user from user_id."""
         try:
-            return ForumUser.objects.get(user__pk=int(user_id)).to_dict()
+            forum_user = ForumUser.objects.get(user__pk=int(user_id))
+            if get_full_dict:
+                return forum_user.to_dict()
+            return forum_user.__dict__
         except ObjectDoesNotExist:
             return None
 
@@ -1905,9 +1904,13 @@ class MySQLBackend(AbstractBackend):
         return {"course_id": course_id}
 
     @staticmethod
-    def get_filtered_threads(query: dict[str, Any]) -> list[dict[str, Any]]:
+    def get_filtered_threads(
+        query: dict[str, Any], ids_only: bool = False
+    ) -> list[dict[str, Any]]:
         """Return a list of threads that match the given filter."""
         threads = CommentThread.objects.filter(**query)
+        if ids_only:
+            return [{"_id": str(thread.pk)} for thread in threads]
         return [thread.to_dict() for thread in threads]
 
     @staticmethod

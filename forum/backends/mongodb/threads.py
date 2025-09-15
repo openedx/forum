@@ -204,6 +204,7 @@ class CommentThread(BaseContents):
         close_reason_code: Optional[str] = None,
         closed_by_id: Optional[str] = None,
         group_id: Optional[int] = None,
+        skip_timestamp_update: bool = False,
     ) -> int:
         """
         Updates a thread document in the database.
@@ -229,6 +230,7 @@ class CommentThread(BaseContents):
             pinned: Whether the thread is pinned.
             comments_count: The number of comments on the thread.
             endorsed: Whether the thread is endorsed.
+            skip_timestamp_update: Whether to skip updating the timestamp (default: False).
 
         Returns:
             int: The number of documents modified.
@@ -277,8 +279,9 @@ class CommentThread(BaseContents):
             )
             update_data["edit_history"] = edit_history
 
-        date = datetime.now()
-        update_data["updated_at"] = date
+        if not skip_timestamp_update:
+            date = datetime.now()
+            update_data["updated_at"] = date
         result = self._collection.update_one(
             {"_id": ObjectId(thread_id)},
             {"$set": update_data},

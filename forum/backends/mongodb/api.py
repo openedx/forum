@@ -346,7 +346,9 @@ class MongoBackend(AbstractBackend):
             thread_id (str): The ID of the thread to pin/unpin.
             action (str): The action to perform ("pin" or "unpin").
         """
-        CommentThread().update(thread_id, pinned=action == "pin")
+        CommentThread().update(
+            thread_id, pinned=action == "pin", skip_timestamp_update=True
+        )
 
     @classmethod
     def get_pinned_unpinned_thread_serialized_data(

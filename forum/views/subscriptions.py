@@ -1,5 +1,7 @@
 """Subscriptions API Views."""
 
+from typing import Any
+
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -91,10 +93,13 @@ class UserSubscriptionAPIView(APIView):
         Raises:
             HTTP_400_BAD_REQUEST: If the user does not exist.
         """
-        params = request.GET.dict()
+        params: dict[str, Any] = request.GET.dict()
+        course_id = params.pop("course_id")
         try:
             serilized_data = get_user_subscriptions(
-                user_id, params["course_id"], params
+                user_id,
+                course_id,
+                **params,
             )
         except ForumV2RequestError as e:
             return Response(data={"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

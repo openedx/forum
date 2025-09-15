@@ -296,7 +296,7 @@ def _get_stats_for_usernames(
     for user in users:
         if user["username"] not in usernames:
             continue
-        course_stats = user["course_stats"]
+        course_stats = user.get("course_stats")
         if course_stats:
             for course_stat in course_stats:
                 if course_stat["course_id"] == course_id:

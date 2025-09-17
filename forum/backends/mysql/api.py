@@ -1501,6 +1501,13 @@ class MySQLBackend(AbstractBackend):
         )
         new_comment.sort_key = new_comment.get_sort_key()
         new_comment.save()
+
+        # Update thread's last activity timestamp to mark it as having new activity
+        if comment_thread_id:
+            CommentThread.objects.filter(pk=int(comment_thread_id)).update(
+                last_activity_at=timezone.now()
+            )
+
         if data.get("parent_id"):
             cls.update_child_count_in_parent_comment(data["parent_id"], 1)
             cls.update_stats_for_course(data["author_id"], data["course_id"], replies=1)

@@ -329,7 +329,7 @@ class MySQLBackend(AbstractBackend):
         except ObjectDoesNotExist as exc:
             raise ValueError("Thread doesn't exist") from exc
         comment_thread.pinned = action == "pin"
-        comment_thread.save()
+        comment_thread.save(update_fields=["pinned"])
 
     @classmethod
     def get_pinned_unpinned_thread_serialized_data(

@@ -607,6 +607,7 @@ class MySQLBackend(AbstractBackend):
         context: str = "course",
         raw_query: bool = False,
         commentable_ids: Optional[list[str]] = None,
+        is_moderator: bool = False,
     ) -> dict[str, Any]:
         """
         Handles complex thread queries based on various filters and returns paginated results.
@@ -629,6 +630,7 @@ class MySQLBackend(AbstractBackend):
             context (str): The context to filter threads by.
             raw_query (bool): Whether to return raw query results without further processing.
             commentable_ids (Optional[list[str]]): List of commentable IDs to filter threads by topic id.
+            is_moderator (bool): Whether the user is a discussion moderator.
 
         Returns:
             dict[str, Any]: A dictionary containing the paginated thread results and associated metadata.
@@ -721,7 +723,9 @@ class MySQLBackend(AbstractBackend):
                 num_comments=0
             )
         # filter by topics: if commentable_ids are provided, commentable_id is basically topic id
-        if commentable_ids:
+        # For moderators: show all topics (no filtering by commentable_ids)
+        # For learners: apply commentable_ids filtering (cohorted topics shown as archived)
+        if commentable_ids and not is_moderator:
             base_query = base_query.filter(
                 commentable_id__in=commentable_ids,
             )
@@ -1078,6 +1082,7 @@ class MySQLBackend(AbstractBackend):
             int(params.get("page", 1)),
             int(params.get("per_page", 100)),
             commentable_ids=params.get("commentable_ids", []),
+            is_moderator=params.get("is_moderator", False),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,

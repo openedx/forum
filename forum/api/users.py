@@ -197,6 +197,7 @@ def get_user_active_threads(
     page: Optional[int] = FORUM_DEFAULT_PAGE,
     per_page: Optional[int] = FORUM_DEFAULT_PER_PAGE,
     group_id: Optional[str] = None,
+    is_moderator: Optional[bool] = False,
 ) -> dict[str, Any]:
     """Get user active threads."""
     backend = get_backend(course_id)()
@@ -249,6 +250,7 @@ def get_user_active_threads(
         "per_page": per_page,
         "context": "course",
         "raw_query": raw_query,
+        "is_moderator": is_moderator,
     }
     data = backend.handle_threads_query(**params)
 

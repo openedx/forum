@@ -134,6 +134,8 @@ class AbstractBackend:
         per_page: int,
         context: str = "course",
         raw_query: bool = False,
+        commentable_ids: Optional[list[str]] = None,
+        is_moderator: bool = False,
     ) -> dict[str, Any]:
         """Handle threads query."""
         raise NotImplementedError

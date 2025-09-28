@@ -74,6 +74,7 @@ def search_threads(
     count_flagged: bool = False,
     page: int = FORUM_DEFAULT_PAGE,
     per_page: int = FORUM_DEFAULT_PER_PAGE,
+    is_moderator: bool = False,
 ) -> dict[str, Any]:
     """
     Search for threads based on the provided data.
@@ -103,6 +104,9 @@ def search_threads(
         page,
         per_page,
         context,
+        raw_query=False,
+        commentable_ids=commentable_ids,
+        is_moderator=is_moderator,
     )
 
     if collections := data.get("collection"):

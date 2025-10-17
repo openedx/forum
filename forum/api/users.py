@@ -31,7 +31,7 @@ def get_user(
         A response with the users data.
     """
     backend = get_backend(course_id)()
-    user = backend.get_user(user_id)
+    user = backend.get_user(user_id, get_full_dict=False)
     if not user:
         log.error(f"Forumv2RequestError for retrieving user's data for id {user_id}.")
         raise ForumV2RequestError(str(f"user not found with id: {user_id}"))

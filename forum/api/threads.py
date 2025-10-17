@@ -390,7 +390,7 @@ def get_user_threads(
     backend.validate_params(params)
 
     thread_filter = backend.get_user_thread_filter(course_id)
-    filtered_threads = backend.get_filtered_threads(thread_filter)
+    filtered_threads = backend.get_filtered_threads(thread_filter, ids_only=True)
     thread_ids = [thread["_id"] for thread in filtered_threads]
     threads = backend.get_threads(params, user_id or "", ThreadSerializer, thread_ids)
 

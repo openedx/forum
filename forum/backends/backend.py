@@ -337,7 +337,7 @@ class AbstractBackend:
         raise NotImplementedError
 
     @staticmethod
-    def get_user(user_id: str) -> dict[str, Any] | None:
+    def get_user(user_id: str, get_full_dict: bool = True) -> dict[str, Any] | None:
         """Get user."""
         raise NotImplementedError
 
@@ -369,7 +369,9 @@ class AbstractBackend:
         raise NotImplementedError
 
     @staticmethod
-    def get_filtered_threads(query: dict[str, Any]) -> list[dict[str, Any]]:
+    def get_filtered_threads(
+        query: dict[str, Any], ids_only: bool = False
+    ) -> list[dict[str, Any]]:
         """Get filtered threads."""
         raise NotImplementedError
 

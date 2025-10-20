@@ -416,6 +416,7 @@ def test_retire_user(api_client: APIClient, patched_get_backend: Any) -> None:
     setup_10_threads(user_id, username, backend)
     retired_username = "retired_username_ABCD1234"
     user = backend.get_user(user_id)
+    email = user["email"]
     assert user
     assert user["username"] == username
 
@@ -426,8 +427,11 @@ def test_retire_user(api_client: APIClient, patched_get_backend: Any) -> None:
     assert response.status_code == 200
     user = backend.get_user(user_id)
     assert user
-    assert user["username"] == retired_username
-    assert user["email"] == ""
+
+    # Retiring user in the forum backend should not touch LMS User model.
+    assert user["username"] == username
+    assert user["email"] == email
+
     contents = list(backend.get_contents(author_id=user_id))
     assert len(contents) > 0
     for content in contents:
@@ -454,6 +458,7 @@ def test_retire_user_with_subscribed_threads(
     setup_10_threads(user_id, username, backend)
     retired_username = "retired_username_ABCD1234"
     user = backend.get_user(user_id)
+    email = user["email"]
     assert user
     assert user["username"] == username
     thread_id = backend.create_thread(
@@ -483,8 +488,11 @@ def test_retire_user_with_subscribed_threads(
 
     user = backend.get_user(user_id)
     assert user
-    assert user["username"] == retired_username
-    assert user["email"] == ""
+
+    # Retiring user in the forum backend should not touch LMS User model.
+    assert user["username"] == username
+    assert user["email"] == email
+
     # User should be subscribed to no threads.
     response = api_client.get(
         f"/api/v2/users/{user_id}/subscribed_threads?course_id=course1",

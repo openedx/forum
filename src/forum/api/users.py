@@ -135,14 +135,7 @@ def retire_user(
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(f"user not found with id: {user_id}")
-    backend.update_user(
-        user_id,
-        data={
-            "email": "",
-            "username": retired_username,
-            "read_states": [],
-        },
-    )
+    backend.update_user(user_id, {"read_states": []})
     backend.unsubscribe_all(user_id)
     backend.retire_all_content(user_id, retired_username)
 

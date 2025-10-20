@@ -685,6 +685,8 @@ def test_retire_user_inactive(api_client: APIClient, patched_get_backend: Any) -
     backend = patched_get_backend()
     user_id = backend.find_or_create_user(user_id="1", username="user1")
     user = backend.get_user(user_id) or {}
+    original_username = user["username"]
+    original_email = user["email"]
 
     # Verify user is not subscribed to any threads
     response = api_client.get_json(
@@ -709,9 +711,10 @@ def test_retire_user_inactive(api_client: APIClient, patched_get_backend: Any) -
     )
     assert response.status_code == 200
 
+    # Retiring user in the forum backend should not touch LMS User model.
     user = backend.get_user(user_id) or {}
-    assert user["username"] == retired_username
-    assert user["email"] == ""
+    assert user["username"] == original_username
+    assert user["email"] == original_email
 
     content = backend.get_user_contents_by_username(retired_username)
     assert len(content) == 0

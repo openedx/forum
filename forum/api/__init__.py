@@ -9,6 +9,7 @@ from .comments import (
     delete_comment,
     get_course_id_by_comment,
     get_parent_comment,
+    get_user_comments,
     update_comment,
 )
 from .flags import (
@@ -68,6 +69,7 @@ __all__ = [
     "get_thread_subscriptions",
     "get_user",
     "get_user_active_threads",
+    "get_user_comments",
     "get_user_course_stats",
     "get_user_subscriptions",
     "get_user_threads",

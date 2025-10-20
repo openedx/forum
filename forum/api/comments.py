@@ -3,6 +3,7 @@ Native Python Comments APIs.
 """
 
 import logging
+import math
 from typing import Any, Optional
 
 from django.core.exceptions import ObjectDoesNotExist
@@ -317,3 +318,57 @@ def get_course_id_by_comment(comment_id: str) -> str | None:
         or MySQLBackend.get_course_id_by_comment_id(comment_id)
         or None
     )
+
+
+def get_user_comments(
+    user_id: str,
+    course_id: str,
+    flagged: Optional[bool] = False,
+    page: int = 1,
+    per_page: int = 10,
+) -> dict[str, Any]:
+    """
+    Get all comments made by a user in a specific course.
+
+    Args:
+        user_id: The ID of the user
+        course_id: The ID of the course
+        flagged: Filter for flagged comments
+        page: Page number for pagination
+        per_page: Number of items per page
+
+    Returns:
+        A dictionary containing paginated comment results
+    """
+
+    backend = get_backend(course_id)()
+
+    # Build query parameters
+    query_params: dict[str, Any] = {
+        "author_id": str(user_id),
+        "course_id": course_id,
+    }
+
+    if flagged:
+        query_params["abuse_flaggers"] = {"$ne": [], "$exists": True}
+
+    # Get total count
+    comment_count = backend.get_comments_count(**query_params)
+
+    # Calculate pagination
+    num_pages = max(1, math.ceil(comment_count / per_page))
+    skip = (page - 1) * per_page
+
+    # Get paginated comments
+    query_params["resp_skip"] = skip
+    query_params["resp_limit"] = per_page
+    query_params["sort"] = -1  # Sort by newest first
+
+    comments = backend.get_comments(**query_params)
+
+    return {
+        "collection": comments,
+        "comment_count": comment_count,
+        "num_pages": num_pages,
+        "page": page,
+    }

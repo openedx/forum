@@ -16,6 +16,14 @@ Unreleased
 
 * Add support for Typesense as the search backend.
 
+0.4.1 - 2025-10-21
+******************
+
+Fixed
+-----
+
+* Do not modify LMS users during retirement — this is handled by the LMS retirement pipeline.
+
 0.3.4 – 2025-08-13
 ******************
 

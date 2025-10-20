@@ -184,6 +184,11 @@ class Content(models.Model):
             votes["count"] = votes["count"]
         return votes
 
+    @property
+    def author_username(self) -> str:
+        """Return the username of the content author."""
+        return self.author.username
+
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the content."""
         raise NotImplementedError

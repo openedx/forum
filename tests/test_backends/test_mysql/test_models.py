@@ -841,3 +841,279 @@ def test_subscription_unique_together() -> None:
         Subscription.objects.create(
             subscriber=user, source_content_type=content_type, source_object_id=1
         )
+
+
+@pytest.mark.django_db
+def test_comment_thread_author_username_set_on_creation() -> None:
+    """Test that author_username is automatically set on CommentThread creation."""
+    user = User.objects.create(
+        username="testuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    assert comment_thread.author_username == "testuser"
+
+
+@pytest.mark.django_db
+def test_comment_author_username_set_on_creation() -> None:
+    """Test that author_username is automatically set on Comment creation."""
+    user = User.objects.create(
+        username="testuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    assert comment.author_username == "testuser"
+
+
+@pytest.mark.django_db
+def test_comment_thread_author_username_preserved_when_provided() -> None:
+    """Test that author_username is preserved when explicitly provided."""
+    user = User.objects.create(
+        username="newusername", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        author_username="originalusername",
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    assert comment_thread.author_username == "originalusername"
+
+
+@pytest.mark.django_db
+def test_comment_author_username_preserved_when_provided() -> None:
+    """Test that author_username is preserved when explicitly provided."""
+    user = User.objects.create(
+        username="newusername", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        author_username="originalusername",
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    assert comment.author_username == "originalusername"
+
+
+@pytest.mark.django_db
+def test_comment_thread_retired_username_priority_on_creation() -> None:
+    """Test that retired_username takes priority when set during creation."""
+    user = User.objects.create(
+        username="retired_user_abc123", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        retired_username="originaluser",
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    # retired_username should be used as author_username
+    assert comment_thread.author_username == "originaluser"
+    assert comment_thread.retired_username == "originaluser"
+
+
+@pytest.mark.django_db
+def test_comment_retired_username_priority_on_creation() -> None:
+    """Test that retired_username takes priority when set during creation."""
+    user = User.objects.create(
+        username="retired_user_abc123", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        retired_username="originaluser",
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    # retired_username should be used as author_username
+    assert comment.author_username == "originaluser"
+    assert comment.retired_username == "originaluser"
+
+
+@pytest.mark.django_db
+def test_comment_thread_to_dict_uses_author_username() -> None:
+    """Test that to_dict uses author_username when available."""
+    user = User.objects.create(
+        username="currentuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        author_username="historicaluser",
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    thread_dict = comment_thread.to_dict()
+    assert thread_dict["author_username"] == "historicaluser"
+
+
+@pytest.mark.django_db
+def test_comment_to_dict_uses_author_username() -> None:
+    """Test that to_dict uses author_username when available."""
+    user = User.objects.create(
+        username="currentuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        author_username="historicaluser",
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    comment_dict = comment.to_dict()
+    assert comment_dict["author_username"] == "historicaluser"
+
+
+@pytest.mark.django_db
+def test_comment_thread_to_dict_fallback_to_retired_username() -> None:
+    """Test that to_dict falls back to retired_username when author_username is None."""
+    user = User.objects.create(
+        username="retired_user_abc123", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        retired_username="retireduser",
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    # Manually set author_username to None to test fallback
+    comment_thread.author_username = None
+    comment_thread.save(update_fields=["author_username"])
+
+    thread_dict = comment_thread.to_dict()
+    assert thread_dict["author_username"] == "retireduser"
+
+
+@pytest.mark.django_db
+def test_comment_to_dict_fallback_to_retired_username() -> None:
+    """Test that to_dict falls back to retired_username when author_username is None."""
+    user = User.objects.create(
+        username="retired_user_abc123", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        retired_username="retireduser",
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    # Manually set author_username to None to test fallback
+    comment.author_username = None
+    comment.save(update_fields=["author_username"])
+
+    comment_dict = comment.to_dict()
+    assert comment_dict["author_username"] == "retireduser"
+
+
+@pytest.mark.django_db
+def test_comment_thread_to_dict_fallback_to_current_username() -> None:
+    """Test that to_dict falls back to current username when both author_username and retired_username are None."""
+    user = User.objects.create(
+        username="currentuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    # Manually set both to None to test final fallback
+    comment_thread.author_username = None
+    comment_thread.retired_username = None
+    comment_thread.save(update_fields=["author_username", "retired_username"])
+
+    thread_dict = comment_thread.to_dict()
+    assert thread_dict["author_username"] == "currentuser"
+
+
+@pytest.mark.django_db
+def test_comment_to_dict_fallback_to_current_username() -> None:
+    """Test that to_dict falls back to current username when both author_username and retired_username are None."""
+    user = User.objects.create(
+        username="currentuser", email="test@example.com", password="password"
+    )
+    comment_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=user,
+        course_id="course123",
+        body="This is a test comment",
+        comment_thread=comment_thread,
+    )
+    # Manually set both to None to test final fallback
+    comment.author_username = None
+    comment.retired_username = None
+    comment.save(update_fields=["author_username", "retired_username"])
+
+    comment_dict = comment.to_dict()
+    assert comment_dict["author_username"] == "currentuser"

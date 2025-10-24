@@ -91,6 +91,20 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
     author = get_user_or_none(thread_data["author_id"])
     if not author:
         return
+
+    # Preserve author_username from MongoDB (historical username)
+    author_username = thread_data.get("author_username")
+
+    # Preserve retired_username from MongoDB
+    retired_username = thread_data.get("retired_username")
+
+    # If author_username is not provided, use retired_username or fallback to current username
+    if not author_username:
+        if retired_username:
+            author_username = retired_username
+        else:
+            author_username = author.username
+
     mongo_thread_id = str(thread_data["_id"])
     mongo_content, _ = MongoContent.objects.get_or_create(
         mongo_id=mongo_thread_id,
@@ -98,6 +112,8 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
     if not mongo_content.content_object_id:
         thread = CommentThread.objects.create(
             author=author,
+            author_username=author_username,
+            retired_username=retired_username,
             course_id=thread_data["course_id"],
             title=get_trunc_title(thread_data.get("title", "")),
             body=thread_data["body"],
@@ -128,6 +144,20 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
     author = get_user_or_none(comment_data["author_id"])
     if not author:
         return
+
+    # Preserve author_username from MongoDB (historical username)
+    author_username = comment_data.get("author_username")
+
+    # Preserve retired_username from MongoDB
+    retired_username = comment_data.get("retired_username")
+
+    # If author_username is not provided, use retired_username or fallback to current username
+    if not author_username:
+        if retired_username:
+            author_username = retired_username
+        else:
+            author_username = author.username
+
     mongo_thread_id = str(comment_data["comment_thread_id"])
     mongo_thread = MongoContent.objects.filter(mongo_id=mongo_thread_id).first()
     if not mongo_thread:
@@ -169,6 +199,8 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
     if not mongo_comment.content_object_id:
         comment = Comment.objects.create(
             author=author,
+            author_username=author_username,
+            retired_username=retired_username,
             comment_thread=thread,
             parent=parent,
             course_id=comment_data["course_id"],

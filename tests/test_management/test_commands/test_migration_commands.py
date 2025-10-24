@@ -704,3 +704,245 @@ def test_partial_user_existence_migration(patched_mongodb: Database[Any]) -> Non
     # Validate invalid content is skipped
     assert not MongoContent.objects.filter(mongo_id=comment_thread_id_invalid).exists()
     assert not MongoContent.objects.filter(mongo_id=comment_id_invalid).exists()
+
+
+def test_migrate_thread_preserves_author_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that author_username is preserved during thread migration."""
+    comment_thread_id = ObjectId()
+    patched_mongodb.contents.insert_one(
+        {
+            "_id": comment_thread_id,
+            "_type": "CommentThread",
+            "author_id": "1",
+            "author_username": "historical_username",
+            "course_id": "test_course",
+            "title": "Test Thread",
+            "body": "Test body",
+            "created_at": timezone.now(),
+            "updated_at": timezone.now(),
+            "votes": {"up": [], "down": []},
+            "abuse_flaggers": [],
+            "historical_abuse_flaggers": [],
+            "last_activity_at": timezone.now(),
+        }
+    )
+
+    User.objects.create(id=1, username="current_username")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_thread = MongoContent.objects.get(mongo_id=comment_thread_id)
+    thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
+    assert thread.author_username == "historical_username"
+    assert thread.author.username == "current_username"
+
+
+def test_migrate_comment_preserves_author_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that author_username is preserved during comment migration."""
+    comment_thread_id = ObjectId()
+    comment_id = ObjectId()
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id,
+                "_type": "CommentThread",
+                "author_id": "1",
+                "course_id": "test_course",
+                "title": "Test Thread",
+                "body": "Test body",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id,
+                "_type": "Comment",
+                "author_id": "1",
+                "author_username": "historical_username",
+                "course_id": "test_course",
+                "body": "Test comment",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id,
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "depth": 0,
+                "sk": f"{comment_id}",
+            },
+        ]
+    )
+
+    User.objects.create(id=1, username="current_username")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_comment = MongoContent.objects.get(mongo_id=comment_id)
+    comment = Comment.objects.get(pk=mongo_comment.content_object_id)
+    assert comment.author_username == "historical_username"
+    assert comment.author.username == "current_username"
+
+
+def test_migrate_thread_preserves_retired_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that retired_username is preserved during thread migration."""
+    comment_thread_id = ObjectId()
+    patched_mongodb.contents.insert_one(
+        {
+            "_id": comment_thread_id,
+            "_type": "CommentThread",
+            "author_id": "1",
+            "retired_username": "retired_user",
+            "course_id": "test_course",
+            "title": "Test Thread",
+            "body": "Test body",
+            "created_at": timezone.now(),
+            "updated_at": timezone.now(),
+            "votes": {"up": [], "down": []},
+            "abuse_flaggers": [],
+            "historical_abuse_flaggers": [],
+            "last_activity_at": timezone.now(),
+        }
+    )
+
+    User.objects.create(id=1, username="retired_user_abc123")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_thread = MongoContent.objects.get(mongo_id=comment_thread_id)
+    thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
+    assert thread.retired_username == "retired_user"
+    assert thread.author_username == "retired_user"
+
+
+def test_migrate_comment_preserves_retired_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that retired_username is preserved during comment migration."""
+    comment_thread_id = ObjectId()
+    comment_id = ObjectId()
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id,
+                "_type": "CommentThread",
+                "author_id": "1",
+                "course_id": "test_course",
+                "title": "Test Thread",
+                "body": "Test body",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id,
+                "_type": "Comment",
+                "author_id": "1",
+                "retired_username": "retired_user",
+                "course_id": "test_course",
+                "body": "Test comment",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id,
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "depth": 0,
+                "sk": f"{comment_id}",
+            },
+        ]
+    )
+
+    User.objects.create(id=1, username="retired_user_abc123")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_comment = MongoContent.objects.get(mongo_id=comment_id)
+    comment = Comment.objects.get(pk=mongo_comment.content_object_id)
+    assert comment.retired_username == "retired_user"
+    assert comment.author_username == "retired_user"
+
+
+def test_migrate_thread_fallback_to_current_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that migration falls back to current username when author_username is missing."""
+    comment_thread_id = ObjectId()
+    patched_mongodb.contents.insert_one(
+        {
+            "_id": comment_thread_id,
+            "_type": "CommentThread",
+            "author_id": "1",
+            "course_id": "test_course",
+            "title": "Test Thread",
+            "body": "Test body",
+            "created_at": timezone.now(),
+            "updated_at": timezone.now(),
+            "votes": {"up": [], "down": []},
+            "abuse_flaggers": [],
+            "historical_abuse_flaggers": [],
+            "last_activity_at": timezone.now(),
+        }
+    )
+
+    User.objects.create(id=1, username="current_username")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_thread = MongoContent.objects.get(mongo_id=comment_thread_id)
+    thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
+    assert thread.author_username == "current_username"
+
+
+def test_migrate_comment_fallback_to_current_username(
+    patched_mongodb: Database[Any],
+) -> None:
+    """Test that migration falls back to current username when author_username is missing."""
+    comment_thread_id = ObjectId()
+    comment_id = ObjectId()
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id,
+                "_type": "CommentThread",
+                "author_id": "1",
+                "course_id": "test_course",
+                "title": "Test Thread",
+                "body": "Test body",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "last_activity_at": timezone.now(),
+            },
+            {
+                "_id": comment_id,
+                "_type": "Comment",
+                "author_id": "1",
+                "course_id": "test_course",
+                "body": "Test comment",
+                "created_at": timezone.now(),
+                "updated_at": timezone.now(),
+                "comment_thread_id": comment_thread_id,
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "depth": 0,
+                "sk": f"{comment_id}",
+            },
+        ]
+    )
+
+    User.objects.create(id=1, username="current_username")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    mongo_comment = MongoContent.objects.get(mongo_id=comment_id)
+    comment = Comment.objects.get(pk=mongo_comment.content_object_id)
+    assert comment.author_username == "current_username"

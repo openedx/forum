@@ -96,6 +96,18 @@ class Content(models.Model):
     author: models.ForeignKey[User, User] = models.ForeignKey(
         User, on_delete=models.CASCADE
     )
+    author_username: models.CharField[Optional[str], str] = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Username at time of posting, preserved for historical accuracy",
+    )
+    retired_username: models.CharField[Optional[str], str] = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Username to display if author account was retired",
+    )
     course_id: models.CharField[str, str] = models.CharField(max_length=255)
     body: models.TextField[str, str] = models.TextField()
     visible: models.BooleanField[bool, bool] = models.BooleanField(default=True)
@@ -183,6 +195,16 @@ class Content(models.Model):
             votes["point"] = votes["up_count"] - votes["down_count"]
             votes["count"] = votes["count"]
         return votes
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Set author_username on creation if not already set."""
+        if not self.pk and not self.author_username:
+            # On creation, store the current username
+            if self.retired_username:
+                self.author_username = self.retired_username
+            elif self.author:
+                self.author_username = self.author.username
+        super().save(*args, **kwargs)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the content."""
@@ -288,7 +310,9 @@ class CommentThread(Content):
             "closed_by_id": str(self.closed_by.pk) if self.closed_by else None,
             "close_reason_code": self.close_reason_code,
             "author_id": str(self.author.pk),
-            "author_username": self.author.username,
+            "author_username": self.author_username
+            or self.retired_username
+            or self.author.username,
             "updated_at": self.updated_at,
             "created_at": self.created_at,
             "last_activity_at": self.last_activity_at,
@@ -469,7 +493,9 @@ class Comment(Content):
             "author_id": str(self.author.pk),
             "comment_thread_id": str(self.comment_thread.pk),
             "child_count": self.child_count,
-            "author_username": self.author.username,
+            "author_username": self.author_username
+            or self.retired_username
+            or self.author.username,
             "sk": str(self.pk),
             "updated_at": self.updated_at,
             "created_at": self.created_at,

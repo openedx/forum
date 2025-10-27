@@ -1223,12 +1223,16 @@ class MySQLBackend(AbstractBackend):
         comments = Comment.objects.filter(author__pk=user_id)
         for comment in comments:
             comment.body = RETIRED_BODY
+            comment.retired_username = username
+            comment.author_username = username
             comment.save()
 
         comment_threads = CommentThread.objects.filter(author__pk=user_id)
         for comment_thread in comment_threads:
             comment_thread.body = RETIRED_BODY
             comment_thread.title = RETIRED_TITLE
+            comment_thread.retired_username = username
+            comment_thread.author_username = username
             comment_thread.save()
 
     @staticmethod
@@ -1949,6 +1953,10 @@ class MySQLBackend(AbstractBackend):
             user = User.objects.get(pk=user_id)
             user.username = username
             user.save()
+
+            # Update author_username in all content
+            Comment.objects.filter(author=user).update(author_username=username)
+            CommentThread.objects.filter(author=user).update(author_username=username)
         except User.DoesNotExist as exc:
             raise ValueError("User does not exist") from exc
 

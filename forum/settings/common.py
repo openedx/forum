@@ -10,7 +10,13 @@ def plugin_settings(settings: Any) -> None:
     Common settings for forum app
     """
     # Search backend
-    if getattr(settings, "MEILISEARCH_ENABLED", False):
+    if getattr(settings, "TYPESENSE_ENABLED", False):
+        settings.FORUM_SEARCH_BACKEND = getattr(
+            settings,
+            "FORUM_SEARCH_BACKEND",
+            "forum.search.typesense.TypesenseBackend",
+        )
+    elif getattr(settings, "MEILISEARCH_ENABLED", False):
         settings.FORUM_SEARCH_BACKEND = getattr(
             settings,
             "FORUM_SEARCH_BACKEND",

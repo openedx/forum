@@ -14,6 +14,7 @@ from forum.models import (
     UserVote,
     Subscription,
     MongoContent,
+    ModerationAuditLog,
 )
 
 
@@ -55,11 +56,12 @@ class CommentThreadAdmin(admin.ModelAdmin):  # type: ignore
         "context",
         "closed",
         "pinned",
+        "is_spam",
         "created_at",
         "updated_at",
     )
     search_fields = ("title", "body", "author__username", "course_id")
-    list_filter = ("thread_type", "context", "closed", "pinned")
+    list_filter = ("thread_type", "context", "closed", "pinned", "is_spam")
 
 
 @admin.register(Comment)
@@ -74,9 +76,10 @@ class CommentAdmin(admin.ModelAdmin):  # type: ignore
         "updated_at",
         "endorsed",
         "anonymous",
+        "is_spam",
     )
     search_fields = ("body", "author__username", "comment_thread__title")
-    list_filter = ("endorsed", "anonymous")
+    list_filter = ("endorsed", "anonymous", "is_spam")
 
 
 @admin.register(EditHistory)
@@ -152,3 +155,85 @@ class MongoContentAdmin(admin.ModelAdmin):  # type: ignore
 
     list_display = ("mongo_id", "content_object_id", "content_type")
     search_fields = ("mongo_id",)
+
+@admin.register(ModerationAuditLog)
+class ModerationAuditLogAdmin(admin.ModelAdmin):  # type: ignore
+    """Admin interface for ModerationAuditLog model."""
+
+    list_display = (
+        "timestamp",
+        "classification",
+        "action_taken",
+        "content_type",
+        "content_object_id",
+        "original_author",
+        "moderator_override",
+        "confidence_score",
+    )
+    list_filter = (
+        "classification",
+        "action_taken",
+        "moderator_override",
+        "content_type",
+        "timestamp",
+    )
+    search_fields = (
+        "original_author__username",
+        "moderator__username",
+        "reasoning",
+        "override_reason",
+    )
+    readonly_fields = (
+        "timestamp",
+        "classifier_output",
+        "reasoning",
+        "classification",
+        "action_taken",
+        "confidence_score",
+        "content_type",
+        "content_object_id",
+        "original_author",
+    )
+    fieldsets = (
+        ("Moderation Decision", {
+            "fields": (
+                "timestamp",
+                "classification",
+                "action_taken",
+                "confidence_score",
+                "reasoning",
+            )
+        }),
+        ("Content Information", {
+            "fields": (
+                "content_type",
+                "content_object_id",
+                "original_author",
+            )
+        }),
+        ("Human Override", {
+            "fields": (
+                "moderator_override",
+                "moderator",
+                "override_reason",
+            )
+        }),
+        ("Technical Details", {
+            "fields": ("classifier_output",),
+            "classes": ("collapse",),
+        }),
+    )
+    
+    def has_add_permission(self, request):  # pylint: disable=unused-argument
+        """Disable adding audit logs manually."""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):  # pylint: disable=unused-argument
+        """Disable deleting audit logs to maintain integrity."""
+        return False
+    
+    def get_queryset(self, queryset):
+        """Optimize queryset with related objects."""
+        return super().get_queryset(queryset).select_related(
+            "content_type", "original_author", "moderator"
+        ).order_by("-timestamp")

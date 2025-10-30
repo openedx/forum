@@ -8,6 +8,7 @@ from typing import Any, Optional
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
+from forum.ai_moderation import moderate_and_flag_spam
 from forum.api.users import mark_thread_as_read
 from forum.backend import get_backend
 from forum.serializers.thread import ThreadSerializer
@@ -327,6 +328,28 @@ def create_thread(
     thread = backend.get_thread(thread_id)
     if not thread:
         raise ForumV2RequestError(f"Failed to create thread with data: {data}")
+    # AI Moderation: Check for spam after successful creation
+    try:
+        combined_content = f"{title}\n\n{body}"
+        moderation_result = moderate_and_flag_spam(
+            combined_content, 
+            thread, 
+            course_id, 
+            backend
+        )
+        
+        if moderation_result.get('is_spam'):
+            log.info(
+                f"AI moderation flagged thread {thread_id} as spam: "
+                f"{moderation_result.get('reasoning')}"
+            )
+            # Get the updated thread after AI moderation
+            thread = backend.get_thread(thread_id)
+        
+        
+    except Exception as spam_check_error:
+        # If spam checking fails, log the error but don't affect thread creation
+        log.error(f"AI moderation failed for thread {thread_id}: {spam_check_error}")
 
     if not (anonymous or anonymous_to_peers):
         backend.update_stats_for_course(

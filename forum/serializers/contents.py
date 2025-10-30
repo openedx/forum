@@ -55,6 +55,9 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
         edit_history (list): A list of previous versions of the content.
         closed (bool): Whether the content is closed for further interactions.
         type (str): The type of content (e.g., "post", "comment").
+        is_spam (bool): Whether the content was flagged as spam by AI moderation.
+        ai_moderation_reason (str): The reason provided by AI for flagging as spam, if applicable.
+        abuse_flagged (bool): Whether the content has been flagged for abuse by any user or system.
     """
 
     id = serializers.CharField(source="_id")
@@ -76,6 +79,43 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
     edit_history = EditHistorySerializer(default=[], many=True)
     closed = serializers.BooleanField(default=False)
     type = serializers.CharField()
+    is_spam = serializers.BooleanField(default=False)
+    ai_moderation_reason = serializers.CharField(allow_null=True, default=None)
+    abuse_flagged = serializers.SerializerMethodField()
+    
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Initialize the serializer with context-specific settings.
+        """
+        context = kwargs.get("context", {})
+        self.include_ai_moderation = context.pop("include_ai_moderation", True)
+        
+        super().__init__(*args, **kwargs)
+        
+        # Remove AI moderation fields if not requested
+        if not self.include_ai_moderation:
+            self.fields.pop("is_spam", None)
+            self.fields.pop("ai_moderation_reason", None)
+            self.fields.pop("abuse_flagged", None)
+
+    def get_abuse_flagged(self, obj: dict[str, Any]) -> bool:
+        """
+        Determine if the content has been flagged for abuse.
+        
+        Args:
+            obj: The content object (dict for MongoDB, model for MySQL)
+            
+        Returns:
+            bool: True if content has been flagged for abuse, False otherwise
+        """
+        # Check if there are any abuse flaggers
+        abuse_flaggers = obj.get('abuse_flaggers', [])
+        if abuse_flaggers:
+            return True
+            
+        # Also check if content is marked as spam
+        is_spam = obj.get('is_spam', False)
+        return is_spam
 
     def create(self, validated_data: dict[str, Any]) -> Any:
         """Raise NotImplementedError"""

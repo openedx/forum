@@ -100,6 +100,8 @@ class CommentThread(BaseContents):
         abuse_flaggers: Optional[list[str]] = None,
         historical_abuse_flaggers: Optional[list[str]] = None,
         group_id: Optional[int] = None,
+        is_spam: bool = False,
+        ai_moderation_reason: Optional[str] = None,
     ) -> str:
         """
         Inserts a new thread document into the database.
@@ -119,6 +121,8 @@ class CommentThread(BaseContents):
             visible (bool): Whether the thread is visible. Defaults to True.
             abuse_flaggers: A list of users who flagged the thread for abuse.
             historical_abuse_flaggers: A list of users who historically flagged the thread for abuse.
+            is_spam: Whether the thread was flagged as spam by AI moderation.
+            ai_moderation_reason: The reason why the thread was flagged as spam.
 
         Raises:
             ValueError: If `thread_type` is not 'question' or 'discussion'.
@@ -162,6 +166,8 @@ class CommentThread(BaseContents):
             "visible": visible,
             "abuse_flaggers": abuse_flaggers,
             "historical_abuse_flaggers": historical_abuse_flaggers,
+            "is_spam": is_spam,
+            "ai_moderation_reason": ai_moderation_reason,
         }
         if group_id:
             thread_data["group_id"] = group_id
@@ -204,6 +210,8 @@ class CommentThread(BaseContents):
         close_reason_code: Optional[str] = None,
         closed_by_id: Optional[str] = None,
         group_id: Optional[int] = None,
+        is_spam: Optional[bool] = None,
+        ai_moderation_reason: Optional[str] = None,
         skip_timestamp_update: bool = False,
     ) -> int:
         """
@@ -258,6 +266,8 @@ class CommentThread(BaseContents):
             ("close_reason_code", close_reason_code),
             ("closed_by_id", closed_by_id),
             ("group_id", group_id),
+            ("is_spam", is_spam),
+            ("ai_moderation_reason", ai_moderation_reason),
         ]
         update_data: dict[str, Any] = {
             field: value for field, value in fields if value is not None

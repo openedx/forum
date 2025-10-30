@@ -9,6 +9,7 @@ from typing import Any, Optional
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
+from forum.ai_moderation import moderate_and_flag_spam
 from forum.backend import get_backend
 from forum.serializers.comment import CommentSerializer
 from forum.utils import ForumV2RequestError
@@ -128,6 +129,29 @@ def create_child_comment(
     if not comment:
         log.error("Forumv2RequestError for create child comment request.")
         raise ForumV2RequestError("comment is not created")
+
+    # AI Moderation: Check for spam after successful creation
+    try:
+        moderation_result = moderate_and_flag_spam(
+            body, 
+            comment, 
+            course_id, 
+            backend
+        )
+        
+        if moderation_result.get('is_spam'):
+            log.info(
+                f"AI moderation flagged child comment {comment_id} as spam: "
+                f"{moderation_result.get('reasoning')}"
+            )
+            # Get the updated comment after AI moderation
+            comment = backend.get_comment(comment_id)
+
+        
+    except Exception as spam_check_error:
+        # If spam checking fails, log the error but don't affect comment creation
+        log.error(f"AI moderation failed for child comment {comment_id}: {spam_check_error}")
+
 
     user = backend.get_user(user_id)
     thread = backend.get_thread(parent_comment["comment_thread_id"])
@@ -290,7 +314,31 @@ def create_parent_comment(
     if not comment_id:
         log.error("Forumv2RequestError for create parent comment request.")
         raise ForumV2RequestError("comment is not created")
+    
+    # Get the created comment for AI moderation
     comment = backend.get_comment(comment_id) or {}
+    
+    # AI Moderation: Check for spam after successful creation
+    try:
+        moderation_result = moderate_and_flag_spam(
+            body, 
+            comment, 
+            course_id, 
+            backend
+        )
+        
+        if moderation_result.get('is_spam'):
+            log.info(
+                f"AI moderation flagged parent comment {comment_id} as spam: "
+                f"{moderation_result.get('reasoning')}"
+            )
+            # Get the updated comment after AI moderation
+            comment = backend.get_comment(comment_id)
+        
+    except Exception as spam_check_error:
+        # If spam checking fails, log the error but don't affect comment creation
+        log.error(f"AI moderation failed for parent comment {comment_id}: {spam_check_error}")
+    
     user = backend.get_user(user_id)
     if user and comment:
         backend.mark_as_read(user_id, thread_id)

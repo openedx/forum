@@ -7,7 +7,6 @@ metadata:
   name: "forum"
   description: "openedx forum app"
   annotations:
-    openedx.org/release: "master"
     openedx.org/arch-interest-groups: ""
 spec:
   owner: "group:wg-maintainers-forums"

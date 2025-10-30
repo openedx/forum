@@ -16,26 +16,8 @@ from opaque_keys.edx.keys import CourseKey
 from forum.backends.mysql.models import ModerationAuditLog, AbuseFlagger
 from forum.toggles import ENABLE_AI_MODERATION
 
+User = get_user_model()
 log = logging.getLogger(__name__)
-
-
-def _get_content_attribute(content_instance: Any, attribute: str, default: Any = None) -> Any:
-    """
-    Helper function to get attribute from content instance (handles both dict and model objects).
-    
-    Args:
-        content_instance: Content object (dict for MongoDB, model for MySQL)
-        attribute: Attribute name to get
-        default: Default value if attribute not found
-        
-    Returns:
-        The attribute value or default
-    """
-    if isinstance(content_instance, dict):
-        return content_instance.get(attribute, default)
-    else:
-        return getattr(content_instance, attribute, default)
-
 
 def _set_content_attribute(content_instance: Any, attribute: str, value: Any) -> None:
     """
@@ -234,8 +216,8 @@ class AIModerationService:
     """Service for AI-based content moderation."""
     
     # Default API configuration
-    DEFAULT_API_URL = "https://xpert-api-services.prod.ai.2u.com/v1/message"
-    DEFAULT_CLIENT_ID = "edx-harvard-forum-spam"
+    DEFAULT_API_URL = "https://example.com"
+    DEFAULT_CLIENT_ID = "example_client_id"
     DEFAULT_SYSTEM_MESSAGE = (
         "Filter posts from a discussion forum platform to identify and flag content that is likely to be spam or a scam.\n\n"
         "**Instructions**:\n"
@@ -321,29 +303,19 @@ class AIModerationService:
             response.raise_for_status()
             
             response_data = response.json()
-            
-            # Extract the assistant's response
-            if response_data and len(response_data) > 0:
-                assistant_content = response_data[0].get('content', '')
-                
-                # Parse the JSON content from the assistant response
-                try:
-                    moderation_result = json.loads(assistant_content)
-                    # Add the full API response for audit purposes
-                    moderation_result['full_api_response'] = response_data
-                    return moderation_result
-                except json.JSONDecodeError as e:
-                    log.error(f"Failed to parse AI moderation response JSON: {e}")
-                    return None
-            
-            log.warning("Empty or unexpected response format from AI moderation API")
-            return None
-            
-        except requests.exceptions.RequestException as e:
-            log.error(f"AI moderation API request failed: {e}")
-            return None
+
+            assistant_content = response_data[0].get('content', '')
+            # Parse the JSON content from the assistant response
+            try:
+                moderation_result = json.loads(assistant_content)
+                # full API response for audit purposes
+                moderation_result['full_api_response'] = response_data
+                return moderation_result
+            except json.JSONDecodeError as e:
+                log.error(f"Failed to parse AI moderation response JSON: {e}")
+                return None
         except Exception as e:
-            log.error(f"Unexpected error in AI moderation: {e}")
+            log.error(f"AI moderation API request failed: {e}")
             return None
     
     def moderate_and_flag_content(
@@ -408,7 +380,6 @@ class AIModerationService:
                 _set_content_attribute(content_instance, 'is_spam', True)
                 _set_content_attribute(content_instance, 'ai_moderation_reason', reasoning)
                 
-                # Flag as abuse instead of deleting
                 if backend:
                     # Use backend method to flag content
                     self._flag_content_as_abuse(content_instance, backend)
@@ -452,14 +423,18 @@ class AIModerationService:
                 # Use MongoDB backend's flagging method if available
                 content_type = _get_mongodb_content_type_name(content_instance)
                 backend.flag_content_as_spam(content_type, content_id, "Spam detected by AI classifier")
-            elif hasattr(backend, 'flag_as_abuse'):
-                # For the standard flag_as_abuse method, we need a user_id
-                # Use the AI moderation system user ID
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                
-                # Create or get the AI moderation system user
-                system_user = User.objects.get(username="edx")
+
+            elif hasattr(backend, 'flag_as_abuse'):                
+                # Create a system user for AI moderation if it doesn't exist
+                system_user, _ = User.objects.get_or_create(
+                    username='ai_moderation_system',
+                    defaults={
+                        'email': 'ai-moderation@system.edx',
+                        'first_name': 'AI',
+                        'last_name': 'Moderation System',
+                        'is_active': False,  # System user, not a real user
+                    }
+                )
                 backend.flag_as_abuse(str(system_user.id), content_id)
             else:
                 # Fallback to direct model flagging
@@ -477,9 +452,7 @@ class AIModerationService:
             if isinstance(content_instance, dict):
                 log.warning("Cannot flag content directly - content_instance is a dict (MongoDB backend)")
                 return
-                
-            User = get_user_model()
-            
+
             # Create a system user for AI moderation if it doesn't exist
             system_user, _ = User.objects.get_or_create(
                 username='ai_moderation_system',
@@ -505,128 +478,23 @@ class AIModerationService:
             
         except Exception as e:
             log.error(f"Failed to flag content directly: {e}")
-    
-    def is_content_spam(self, content: str, course_id: Optional[str] = None) -> bool:
-        """
-        Check if content is spam using AI moderation.
-        
-        Args:
-            content: The text content to check
-            course_id: Optional course ID for waffle flag checking
-            
-        Returns:
-            True if content is classified as spam, False otherwise
-        """
-        # Check if AI moderation is enabled
-        if not self._is_ai_moderation_enabled(course_id):
-            return False
-            
-        # Make API request
-        result = self._make_api_request(content)
-        
-        if result is None:
-            # If API fails, default to not spam to avoid false positives
-            log.warning("AI moderation API failed, defaulting to not spam")
-            return False
-            
-        classification = result.get('classification', 'not_spam')
-        reasoning = result.get('reasoning', 'No reasoning provided')
-        
-        is_spam = classification in ['spam', 'spam_or_scam']
-        
-        log.info(
-            f"AI moderation result: {classification}. Reasoning: {reasoning}"
-        )
-        
-        return is_spam
-    
-    def moderate_content(self, content: str, course_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get full moderation results for content.
-        
-        Args:
-            content: The text content to moderate
-            course_id: Optional course ID for waffle flag checking
-            
-        Returns:
-            Dictionary with 'is_spam', 'reasoning', and 'classification' keys
-        """
-        default_result = {
-            'is_spam': False,
-            'reasoning': 'AI moderation disabled or unavailable',
-            'classification': 'not_spam'
-        }
-        
-        # Check if AI moderation is enabled
-        if not self._is_ai_moderation_enabled(course_id):
-            return default_result
-            
-        # Make API request
-        result = self._make_api_request(content)
-        
-        if result is None:
-            default_result['reasoning'] = 'AI moderation API failed'
-            return default_result
-            
-        classification = result.get('classification', 'not_spam')
-        reasoning = result.get('reasoning', 'No reasoning provided')
-        is_spam = classification in ['spam', 'spam_or_scam']
-        
-        return {
-            'is_spam': is_spam,
-            'reasoning': reasoning,
-            'classification': classification
-        }
-    
+
     def _is_ai_moderation_enabled(self, course_id: Optional[str] = None) -> bool:
         """Check if AI moderation is enabled via waffle flag."""
-        try:
-            if course_id:
-                course_key = CourseKey.from_string(course_id)
-                return ENABLE_AI_MODERATION.is_enabled(course_key)
-            else:
-                # If no course_id, check if it's enabled globally
-                return ENABLE_AI_MODERATION.is_enabled()
-        except Exception as e:
-            log.error(f"Error checking AI moderation waffle flag: {e}")
-            return False
+        if course_id:
+            course_key = CourseKey.from_string(course_id)
+            return ENABLE_AI_MODERATION.is_enabled(course_key)
+        else:
+            # If no course_id, check if it's enabled globally
+            return ENABLE_AI_MODERATION.is_enabled()
 
 
 # Global instance
 ai_moderation_service = AIModerationService()
 
-
-def check_content_for_spam(content: str, course_id: Optional[str] = None) -> bool:
-    """
-    Convenience function to check if content is spam.
-    
-    Args:
-        content: The text content to check
-        course_id: Optional course ID for waffle flag checking
-        
-    Returns:
-        True if content is classified as spam, False otherwise
-    """
-    return ai_moderation_service.is_content_spam(content, course_id)
-
-
-def moderate_forum_content(content: str, course_id: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Convenience function to get full moderation results.
-    
-    Args:
-        content: The text content to moderate
-        course_id: Optional course ID for waffle flag checking
-        
-    Returns:
-        Dictionary with moderation results
-    """
-    return ai_moderation_service.moderate_content(content, course_id)
-
-
 def moderate_and_flag_spam(
-    content: str, 
-    content_instance: Any, 
+    content: str,
+    content_instance: Any,
     course_id: Optional[str] = None,
     backend: Optional[Any] = None
 ) -> Dict[str, Any]:
@@ -641,6 +509,9 @@ def moderate_and_flag_spam(
         
     Returns:
         Dictionary with moderation results and actions taken
+    
+    TODO:- 
+     - Add content check for images
     """
     return ai_moderation_service.moderate_and_flag_content(
         content, content_instance, course_id, backend

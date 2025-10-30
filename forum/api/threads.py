@@ -328,7 +328,7 @@ def create_thread(
     thread = backend.get_thread(thread_id)
     if not thread:
         raise ForumV2RequestError(f"Failed to create thread with data: {data}")
-    # AI Moderation: Check for spam after successful creation
+
     try:
         combined_content = f"{title}\n\n{body}"
         moderation_result = moderate_and_flag_spam(
@@ -337,18 +337,10 @@ def create_thread(
             course_id, 
             backend
         )
-        
-        if moderation_result.get('is_spam'):
-            log.info(
-                f"AI moderation flagged thread {thread_id} as spam: "
-                f"{moderation_result.get('reasoning')}"
-            )
-            # Get the updated thread after AI moderation
-            thread = backend.get_thread(thread_id)
-        
-        
+        # Get the updated thread after AI moderation
+        thread = backend.get_thread(thread_id)
+
     except Exception as spam_check_error:
-        # If spam checking fails, log the error but don't affect thread creation
         log.error(f"AI moderation failed for thread {thread_id}: {spam_check_error}")
 
     if not (anonymous or anonymous_to_peers):

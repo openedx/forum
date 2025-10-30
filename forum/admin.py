@@ -225,11 +225,11 @@ class ModerationAuditLogAdmin(admin.ModelAdmin):  # type: ignore
     )
     
     def has_add_permission(self, request):  # pylint: disable=unused-argument
-        """Disable adding audit logs manually."""
+        """Initially disable adding audit logs manually."""
         return False
     
     def has_delete_permission(self, request, obj=None):  # pylint: disable=unused-argument
-        """Disable deleting audit logs to maintain integrity."""
+        """Initially deleting audit logs to maintain integrity."""
         return False
     
     def get_queryset(self, queryset):

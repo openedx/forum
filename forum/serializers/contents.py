@@ -82,7 +82,7 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
     is_spam = serializers.BooleanField(default=False)
     ai_moderation_reason = serializers.CharField(allow_null=True, default=None)
     abuse_flagged = serializers.SerializerMethodField()
-    
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Initialize the serializer with context-specific settings.

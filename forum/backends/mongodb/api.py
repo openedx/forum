@@ -1768,7 +1768,6 @@ class MongoBackend(AbstractBackend):
         )
         return contents
 
-    # AI Moderation Methods for MongoDB
     @staticmethod
     def flag_content_as_spam(content_type: str, content_id: str, reason: str) -> int:
         """
@@ -1783,17 +1782,15 @@ class MongoBackend(AbstractBackend):
             Number of documents modified
         """
         model = CommentThread() if content_type == "CommentThread" else Comment()
-        
-        # Get current content to check existing flaggers
+
         content = model.get(content_id)
         if not content:
             return 0
-            
-        # Add AI moderation system as flagger and update spam fields
+
         flaggers = content.get("abuse_flaggers", [])
         if "ai_moderation_system" not in flaggers:
             flaggers.append("ai_moderation_system")
-            
+
         return model.update(
             content_id,
             abuse_flaggers=flaggers,
@@ -1814,16 +1811,15 @@ class MongoBackend(AbstractBackend):
             Number of documents modified
         """
         model = CommentThread() if content_type == "CommentThread" else Comment()
-        
-        # Get current content to update flaggers
+
         content = model.get(content_id)
         if not content:
             return 0
-            
+
         flaggers = content.get("abuse_flaggers", [])
         if "ai_moderation_system" in flaggers:
             flaggers.remove("ai_moderation_system")
-            
+
         return model.update(
             content_id,
             abuse_flaggers=flaggers,

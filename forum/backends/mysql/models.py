@@ -126,7 +126,7 @@ class Content(models.Model):
         auto_now=True
     )
     is_spam: models.BooleanField[bool, bool] = models.BooleanField(
-        default=False, 
+        default=False,
         help_text="Whether this content has been identified as spam by AI moderation"
     )
     uservote = GenericRelation(
@@ -785,6 +785,8 @@ class MongoContent(models.Model):
 class ModerationAuditLog(models.Model):
     """Audit log for AI moderation decisions."""
 
+    # Note : The whole model may need a revamp
+    # This is just for POC
     ACTION_CHOICES = [
         ("flagged", "Content Flagged"),
         ("approved", "Content Approved"),
@@ -807,7 +809,6 @@ class ModerationAuditLog(models.Model):
     )
     content: GenericForeignKey = GenericForeignKey("content_type", "content_object_id")
 
-    # Audit fields
     timestamp: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         default=timezone.now, help_text="When the moderation decision was made"
     )
@@ -826,8 +827,6 @@ class ModerationAuditLog(models.Model):
     confidence_score: models.FloatField[Optional[float], float] = models.FloatField(
         null=True, blank=True, help_text="AI confidence score if available"
     )
-
-    # Human moderation override
     moderator_override: models.BooleanField[bool, bool] = models.BooleanField(
         default=False, help_text="Whether a human moderator overrode the AI decision"
     )
@@ -842,8 +841,6 @@ class ModerationAuditLog(models.Model):
         related_name="moderation_actions",
         help_text="Human moderator who made override",
     )
-
-    # Original content author
     original_author: models.ForeignKey[User, User] = models.ForeignKey(
         User,
         on_delete=models.CASCADE,

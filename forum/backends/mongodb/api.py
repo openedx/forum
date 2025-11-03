@@ -1049,7 +1049,6 @@ class MongoBackend(AbstractBackend):
         # Update thread's last activity timestamp to mark it as having new activity
         comment_thread_id = data.get("comment_thread_id")
         if comment_thread_id:
-            from datetime import datetime
             CommentThread().update(
                 comment_thread_id,
                 last_activity_at=datetime.now(),

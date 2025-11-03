@@ -1046,6 +1046,16 @@ class MongoBackend(AbstractBackend):
             parent_id=data.get("parent_id"),
         )
 
+        # Update thread's last activity timestamp to mark it as having new activity
+        comment_thread_id = data.get("comment_thread_id")
+        if comment_thread_id:
+            from datetime import datetime
+            CommentThread().update(
+                comment_thread_id,
+                last_activity_at=datetime.now(),
+                skip_timestamp_update=True
+            )
+
         if data.get("parent_id"):
             cls.update_stats_for_course(data["author_id"], data["course_id"], replies=1)
         else:

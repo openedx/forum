@@ -204,6 +204,7 @@ class CommentThread(BaseContents):
         close_reason_code: Optional[str] = None,
         closed_by_id: Optional[str] = None,
         group_id: Optional[int] = None,
+        last_activity_at: Optional[datetime] = None,
         skip_timestamp_update: bool = False,
     ) -> int:
         """
@@ -258,6 +259,7 @@ class CommentThread(BaseContents):
             ("close_reason_code", close_reason_code),
             ("closed_by_id", closed_by_id),
             ("group_id", group_id),
+            ("last_activity_at", last_activity_at),
         ]
         update_data: dict[str, Any] = {
             field: value for field, value in fields if value is not None

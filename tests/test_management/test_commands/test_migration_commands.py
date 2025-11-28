@@ -1,6 +1,7 @@
 """Test forum mongodb migration commands."""
 
 from io import StringIO
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -946,3 +947,141 @@ def test_migrate_comment_fallback_to_current_username(
     mongo_comment = MongoContent.objects.get(mongo_id=comment_id)
     comment = Comment.objects.get(pk=mongo_comment.content_object_id)
     assert comment.author_username == "current_username"
+
+
+def test_migrate_preserves_timestamps(patched_mongodb: Database[Any]) -> None:
+    """Test that timestamps are preserved during migration (regression test for issue #261).
+
+    This test verifies that when migrating content from MongoDB to MySQL,
+    the original timestamps (created_at, updated_at, last_activity_at) are
+    preserved and not overwritten with the migration time.
+    """
+
+    comment_thread_id = ObjectId()
+    comment_id = ObjectId()
+
+    # Create timestamps that are significantly in the past (30 days ago)
+    # This ensures we can clearly distinguish between preserved timestamps
+    # and timestamps that would be set to "now" during migration
+    now = timezone.now()
+    original_created_at = now - timedelta(days=30)
+    original_updated_at = now - timedelta(days=15)
+    original_last_activity_at = now - timedelta(days=10)
+    original_subscription_created_at = now - timedelta(days=25)
+    original_subscription_updated_at = now - timedelta(days=5)
+
+    patched_mongodb.users.insert_one(
+        {
+            "_id": "1",
+            "username": "testuser",
+            "default_sort_key": "date",
+            "course_stats": [{"course_id": "test_course"}],
+        }
+    )
+    patched_mongodb.contents.insert_many(
+        [
+            {
+                "_id": comment_thread_id,
+                "_type": "CommentThread",
+                "author_id": "1",
+                "course_id": "test_course",
+                "title": "Test Thread",
+                "body": "Test body",
+                "created_at": original_created_at,
+                "updated_at": original_updated_at,
+                "last_activity_at": original_last_activity_at,
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+            },
+            {
+                "_id": comment_id,
+                "_type": "Comment",
+                "author_id": "1",
+                "course_id": "test_course",
+                "body": "Test comment",
+                "created_at": original_created_at,
+                "updated_at": original_updated_at,
+                "comment_thread_id": comment_thread_id,
+                "votes": {"up": [], "down": []},
+                "abuse_flaggers": [],
+                "historical_abuse_flaggers": [],
+                "depth": 0,
+                "sk": f"{comment_id}",
+            },
+        ]
+    )
+    patched_mongodb.subscriptions.insert_one(
+        {
+            "subscriber_id": "1",
+            "source_id": str(comment_thread_id),
+            "source_type": "CommentThread",
+            "source": {"course_id": "test_course"},
+            "created_at": original_subscription_created_at,
+            "updated_at": original_subscription_updated_at,
+        }
+    )
+
+    User.objects.create(id=1, username="testuser")
+    call_command("forum_migrate_course_from_mongodb_to_mysql", "test_course")
+
+    # The key assertion is that timestamps are NOT set to "now" during migration.
+    # We verify this by checking that the timestamps are within the expected
+    # date range (accounting for potential timezone/precision differences).
+    # If timestamps were being set to migration time, they would be ~30 days newer.
+
+    # Verify thread timestamps are preserved (within 1 second tolerance for precision)
+    mongo_thread = MongoContent.objects.get(mongo_id=comment_thread_id)
+    thread = CommentThread.objects.get(pk=mongo_thread.content_object_id)
+
+    # The timestamp should be approximately 30 days old, not "now"
+    thread_created_age = now - thread.created_at
+    assert thread_created_age > timedelta(days=29), (
+        f"Thread created_at should be ~30 days ago, but is only {thread_created_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    thread_updated_age = now - thread.updated_at
+    assert thread_updated_age > timedelta(days=14), (
+        f"Thread updated_at should be ~15 days ago, but is only {thread_updated_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    thread_last_activity_age = now - thread.last_activity_at
+    assert thread_last_activity_age > timedelta(days=9), (
+        f"Thread last_activity_at should be ~10 days ago, but is only {thread_last_activity_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    # Verify comment timestamps are preserved
+    mongo_comment = MongoContent.objects.get(mongo_id=comment_id)
+    comment = Comment.objects.get(pk=mongo_comment.content_object_id)
+
+    comment_created_age = now - comment.created_at
+    assert comment_created_age > timedelta(days=29), (
+        f"Comment created_at should be ~30 days ago, but is only {comment_created_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    comment_updated_age = now - comment.updated_at
+    assert comment_updated_age > timedelta(days=14), (
+        f"Comment updated_at should be ~15 days ago, but is only {comment_updated_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    # Verify subscription timestamps are preserved
+    subscription = Subscription.objects.get(
+        subscriber_id=1, source_object_id=mongo_thread.content_object_id
+    )
+
+    subscription_created_age = now - subscription.created_at
+    assert subscription_created_age > timedelta(days=24), (
+        f"Subscription created_at should be ~25 days ago, but is only {subscription_created_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )
+
+    subscription_updated_age = now - subscription.updated_at
+    assert subscription_updated_age > timedelta(days=4), (
+        f"Subscription updated_at should be ~5 days ago, but is only {subscription_updated_age} ago. "
+        "Timestamps are not being preserved during migration!"
+    )

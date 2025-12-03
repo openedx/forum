@@ -101,7 +101,8 @@ class BaseContents(MongoBaseModel):
         """
         Override the query with the _type field.
         """
-        query = {**query, "_type": self.content_type}
+        if self.content_type:
+            query = {**query, "_type": self.content_type}
         return super().override_query(query)
 
     def get_list(self, **kwargs: Any) -> Cursor[dict[str, Any]]:

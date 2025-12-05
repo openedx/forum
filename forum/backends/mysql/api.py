@@ -861,7 +861,7 @@ class MySQLBackend(AbstractBackend):
         for thread_id in thread_ids:
             thread = threads.get(id=thread_id)
             is_read, unread_count = read_states.get(
-                thread.pk, (False, thread.comment_count)
+                str(thread.pk), (False, thread.comment_count)
             )
             is_endorsed = threads_endorsed.get(thread.pk, False)
             abuse_flagged_count = threads_flagged.get(str(thread.pk), 0)

@@ -34,7 +34,9 @@ When developing this application, it is recommended to clone this repository loc
     git clone git@github.com:openedx/forum.git
     tutor mounts add ./forum/
 
-Check that the forum repository is properly bind-mounted both at build- and run-time by running ``tutor mounts list``. It should output the following::
+Check that the forum repository is properly bind-mounted both at build- and run-time by running ``tutor mounts list``. It should output the following:
+
+.. code-block:: yml
 
     - name: /home/path/to/forum
       build_mounts:
@@ -67,9 +69,11 @@ In edx-platform, forum v2 is not enabled by default and edx-platform will keep c
 
 Note that Tutor enables this flag for all forum plugin users, such that you don't have to run this command yourself. If you wish to migrate your courses one by one to the new forum v2 app, you may create the corresponding "Waffle flag course override" objects in your LMS administration panel, at: ``http(s)://<LMS_HOST>/admin/waffle_utils/waffleflagcourseoverridemodel/``.
 
-⚠️⚠️⚠️ Even if the forum v2 toggle is not enabled, edx-platform will make a call to the forum v2 API in some edge cases. That's because edx-platform needs to determine whether it should use forum v2 or cs_comments_service, based on the value of some course waffle flag. In order to access the course wafffle flag, we need to determine the course ID of the current HTTP request. In some requests, the course ID is not available: only the thread ID or the comment ID is. Thus, edx-platform needs to fetch the course ID that is associated to the thread or comment. That information is stored either in MySQL or in MongoDB. Thus, edx-platform needs to call the forum v2 API.
+⚠️⚠️⚠️ Even if the forum v2 toggle is not enabled, edx-platform will make a call to the forum v2 API in some edge cases. That's because edx-platform needs to determine whether it should use forum v2 or cs_comments_service, based on the value of some course waffle flag. In order to access the course waffle flag, we need to determine the course ID of the current HTTP request. In some requests, the course ID is not available: only the thread ID or the comment ID is. Thus, edx-platform needs to fetch the course ID that is associated to the thread or comment. That information is stored either in MySQL or in MongoDB. Thus, edx-platform needs to call the forum v2 API.
 
-As a consequence, **the forum v2 app needs to have accurate MongoDB configuration settings even if you don't use forum v2**. In a Tutor installation, these settings are set to the right values. In other environments, the following Django settings must be set::
+As a consequence, **the forum v2 app needs to have accurate MongoDB configuration settings even if you don't use forum v2**. In a Tutor installation, these settings are set to the right values. In other environments, the following Django settings must be set:
+
+.. code-block:: python
 
     # Name of the MongoDB database in which forum data is stored
     FORUM_MONGODB_DATABASE = "cs_comments_service"
@@ -82,7 +86,7 @@ As a consequence, **the forum v2 app needs to have accurate MongoDB configuratio
 MySQL backend toggle
 --------------------
 
-To preserve the legacy behaviour of storing data in MongoDB, the forum v2 app makes it possible to keep using MongoDB as a data backend. However, it is strongly recommended to switch to the MySQL storage backend by toggling the ``forum_v2.enable_mysql_backend`` course waffle flag::
+To preserve the legacy behavior of storing data in MongoDB, the forum v2 app makes it possible to keep using MongoDB as a data backend. However, it is strongly recommended to switch to the MySQL storage backend by toggling the ``forum_v2.enable_mysql_backend`` course waffle flag::
 
     ./manage.py lms waffle_flag --create --everyone forum_v2.enable_mysql_backend
 
@@ -136,7 +140,7 @@ To create or update MongoDB indexes, execute the following command::
 
     ./manage.py lms forum_create_mongodb_indexes
 
-Search Indicies
+Search Indices
 ---------------
 
 Based on your search backend i.e Elasticsearch or Meilisearch, the commands will populate search indexes.

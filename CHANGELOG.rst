@@ -14,7 +14,7 @@ Change Log
 Unreleased
 **********
 
-*
+* Add support for Typesense as the search backend.
 
 0.3.4 – 2025-08-13
 ******************

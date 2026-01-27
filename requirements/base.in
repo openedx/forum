@@ -11,4 +11,5 @@ requests
 pymongo
 elasticsearch
 edx-search # meilisearch backend
+typesense
 mysqlclient

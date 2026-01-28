@@ -43,10 +43,10 @@ class SubscriptionAPIView(APIView):
         """
         request_data = request.data
         try:
-            serilized_data = create_subscription(user_id, request_data["source_id"])
+            serialized_data = create_subscription(user_id, request_data["source_id"])
         except ForumV2RequestError as e:
             return Response(data={"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(data=serilized_data, status=status.HTTP_200_OK)
+        return Response(data=serialized_data, status=status.HTTP_200_OK)
 
     def delete(self, request: Request, user_id: str) -> Response:
         """
@@ -64,10 +64,10 @@ class SubscriptionAPIView(APIView):
         """
         try:
             params = request.query_params
-            serilized_data = delete_subscription(user_id, params["source_id"])
+            serialized_data = delete_subscription(user_id, params["source_id"])
         except ForumV2RequestError as e:
             return Response(data={"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(data=serilized_data, status=status.HTTP_200_OK)
+        return Response(data=serialized_data, status=status.HTTP_200_OK)
 
 
 class UserSubscriptionAPIView(APIView):
@@ -96,14 +96,12 @@ class UserSubscriptionAPIView(APIView):
         params: dict[str, Any] = request.GET.dict()
         course_id = params.pop("course_id")
         try:
-            serilized_data = get_user_subscriptions(
-                user_id,
-                course_id,
-                **params,
+            serialized_data = get_user_subscriptions(
+                user_id, params["course_id"], params
             )
         except ForumV2RequestError as e:
             return Response(data={"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(data=serilized_data, status=status.HTTP_200_OK)
+        return Response(data=serialized_data, status=status.HTTP_200_OK)
 
 
 class ThreadSubscriptionAPIView(APIView):

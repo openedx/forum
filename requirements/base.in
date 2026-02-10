@@ -5,6 +5,7 @@ Django             # Web application framework
 
 
 beautifulsoup4
+django-model-utils # For TimeStampedModel
 djangorestframework
 openedx-atlas
 requests

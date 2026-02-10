@@ -4,6 +4,12 @@ URLs for forum.
 
 from django.urls import include, path
 
+from forum.views.bans import (
+    BanDetailAPIView,
+    BannedUsersAPIView,
+    BanUserAPIView,
+    UnbanUserAPIView,
+)
 from forum.views.commentables import CommentablesCountAPIView
 from forum.views.comments import CommentsAPIView, CreateThreadCommentAPIView
 from forum.views.flags import CommentFlagAPIView, ThreadFlagAPIView
@@ -116,6 +122,27 @@ api_patterns = [
         UserCreateAPIView.as_view(),
         name="create-user",
     ),
+    # Ban/Unban user APIs
+    path(
+        "users/bans",
+        BanUserAPIView.as_view(),
+        name="ban-user",
+    ),
+    path(
+        "users/bans/<int:ban_id>",
+        BanDetailAPIView.as_view(),
+        name="ban-detail",
+    ),
+    path(
+        "users/bans/<int:ban_id>/unban",
+        UnbanUserAPIView.as_view(),
+        name="unban-user",
+    ),
+    path(
+        "users/banned",
+        BannedUsersAPIView.as_view(),
+        name="banned-users-list",
+    ),
     path(
         "users/<str:user_id>",
         UserAPIView.as_view(),
@@ -151,13 +178,6 @@ api_patterns = [
         UserRetireAPIView.as_view(),
         name="user-retire",
     ),
-    # Proxy view for various API endpoints
-    # Uncomment to redirect remaining API calls to the V1 API.
-    # path(
-    #     "<path:suffix>",
-    #     ForumProxyAPIView.as_view(),
-    #     name="forum_proxy",
-    # ),
 ]
 
 urlpatterns = [

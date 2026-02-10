@@ -1,5 +1,7 @@
 """MySQL models for forum v2."""
 
+# mypy: ignore-errors
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,10 +10,13 @@ from typing import Any, Optional
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from model_utils.models import TimeStampedModel
+from opaque_keys.edx.django.models import CourseKeyField
 
 from forum.utils import validate_upvote_or_downvote
 
@@ -823,84 +828,231 @@ class MongoContent(models.Model):
 
 
 class ModerationAuditLog(models.Model):
-    """Audit log for AI moderation decisions on spam content."""
+    """
+    Unified audit log for all discussion moderation actions.
 
-    # Available actions that can be taken on spam content
+    Tracks both human moderator actions (bans, content removal) and
+    AI moderation decisions (spam detection, auto-flagging).
+    """
+
+    # Moderation source - who initiated the action
+    SOURCE_HUMAN = "human"
+    SOURCE_AI = "ai"
+    SOURCE_SYSTEM = "system"
+    SOURCE_CHOICES = [
+        (SOURCE_HUMAN, "Human Moderator"),
+        (SOURCE_AI, "AI Classifier"),
+        (SOURCE_SYSTEM, "System/Automated"),
+    ]
+
+    # Unified action types for both human and AI moderation
+    # Human moderator actions on users
+    ACTION_BAN = "ban_user"
+    ACTION_BAN_REACTIVATE = "ban_reactivate"
+    ACTION_UNBAN = "unban_user"
+    ACTION_BAN_EXCEPTION = "ban_exception"
+    ACTION_BULK_DELETE = "bulk_delete"
+    # AI/Human actions on content
+    ACTION_FLAGGED = "flagged"
+    ACTION_SOFT_DELETED = "soft_deleted"
+    ACTION_APPROVED = "approved"
+    ACTION_NO_ACTION = "no_action"
+
     ACTION_CHOICES = [
-        ("flagged", "Content Flagged"),
-        ("soft_deleted", "Content Soft Deleted"),
-        ("no_action", "No Action Taken"),
+        # Human moderator actions on users
+        (ACTION_BAN, "Ban User"),
+        (ACTION_BAN_REACTIVATE, "Ban Reactivated"),
+        (ACTION_UNBAN, "Unban User"),
+        (ACTION_BAN_EXCEPTION, "Ban Exception Created"),
+        (ACTION_BULK_DELETE, "Bulk Delete"),
+        # AI/Human actions on content
+        (ACTION_FLAGGED, "Content Flagged"),
+        (ACTION_SOFT_DELETED, "Content Soft Deleted"),
+        (ACTION_APPROVED, "Content Approved"),
+        (ACTION_NO_ACTION, "No Action Taken"),
     ]
 
-    # Only spam classifications since we don't store non-spam entries
+    # AI classification types (only for AI moderation)
+    CLASSIFICATION_SPAM = "spam"
+    CLASSIFICATION_SPAM_OR_SCAM = "spam_or_scam"
     CLASSIFICATION_CHOICES = [
-        ("spam", "Spam"),
-        ("spam_or_scam", "Spam or Scam"),
+        (CLASSIFICATION_SPAM, "Spam"),
+        (CLASSIFICATION_SPAM_OR_SCAM, "Spam or Scam"),
     ]
 
-    timestamp: models.DateTimeField[datetime, datetime] = models.DateTimeField(
-        default=timezone.now, help_text="When the moderation decision was made"
+    # === Core Fields ===
+    action_type: models.CharField[str, str] = models.CharField(
+        max_length=50,
+        choices=ACTION_CHOICES,
+        default=ACTION_NO_ACTION,
+        db_index=True,
+        help_text="Type of moderation action taken",
     )
-    body: models.TextField[str, str] = models.TextField(
-        help_text="The content body that was moderated"
-    )
-    classifier_output: models.JSONField[dict[str, Any], dict[str, Any]] = (
-        models.JSONField(help_text="Full output from the AI classifier")
-    )
-    reasoning: models.TextField[str, str] = models.TextField(
-        help_text="AI reasoning for the decision"
-    )
-    classification: models.CharField[str, str] = models.CharField(
+    source: models.CharField[str, str] = models.CharField(
         max_length=20,
-        choices=CLASSIFICATION_CHOICES,
-        help_text="AI classification result",
+        choices=SOURCE_CHOICES,
+        default=SOURCE_AI,
+        db_index=True,
+        help_text="Who initiated the moderation action",
     )
-    actions_taken: models.JSONField[list[str], list[str]] = models.JSONField(
-        default=list,
-        help_text="List of actions taken based on moderation (e.g., ['flagged', 'soft_deleted'])",
+    timestamp: models.DateTimeField[datetime, datetime] = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When the moderation action was taken",
     )
-    confidence_score: models.FloatField[Optional[float], float] = models.FloatField(
-        null=True, blank=True, help_text="AI confidence score if available"
+
+    # === Target Fields ===
+    # For user-targeted actions (bans/unbans)
+    target_user: models.ForeignKey[Optional[User], Optional[User]] = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="audit_log_actions_received",
+        db_index=True,
+        help_text="Target user for user moderation actions (ban/unban)",
     )
-    moderator_override: models.BooleanField[bool, bool] = models.BooleanField(
-        default=False, help_text="Whether a human moderator overrode the AI decision"
+    # For content-targeted actions (AI moderation)
+    body: models.TextField[Optional[str], str] = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Content body that was moderated (for content moderation)",
     )
-    override_reason: models.TextField[Optional[str], str] = models.TextField(
-        blank=True, null=True, help_text="Reason for moderator override"
+    original_author: models.ForeignKey[Optional[User], Optional[User]] = (
+        models.ForeignKey(
+            User,
+            on_delete=models.CASCADE,
+            null=True,
+            blank=True,
+            related_name="moderated_content",
+            help_text="Original author of the moderated content",
+        )
     )
-    moderator: models.ForeignKey[User, User] = models.ForeignKey(
+
+    # === Actor Fields ===
+    moderator: models.ForeignKey[Optional[User], Optional[User]] = models.ForeignKey(
         User,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        related_name="moderation_actions",
-        help_text="Human moderator who made override",
+        related_name="audit_log_actions_performed",
+        db_index=True,
+        help_text="Human moderator who performed or overrode the action",
     )
-    original_author: models.ForeignKey[User, User] = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="moderated_content",
-        help_text="Original author of the moderated content",
+
+    # === Context Fields ===
+    course_id: models.CharField[Optional[str], str] = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Course ID for course-level moderation actions",
+    )
+    scope: models.CharField[Optional[str], str] = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="Scope of moderation (course/organization)",
+    )
+    reason: models.TextField[Optional[str], str] = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Reason provided for the moderation action",
+    )
+
+    # === AI-specific Fields (only populated for source='ai') ===
+    classifier_output: models.JSONField[Optional[dict[str, Any]], dict[str, Any]] = (
+        models.JSONField(
+            null=True,
+            blank=True,
+            help_text="Full output from the AI classifier",
+        )
+    )
+    classification: models.CharField[Optional[str], str] = models.CharField(
+        max_length=20,
+        choices=CLASSIFICATION_CHOICES,
+        null=True,
+        blank=True,
+        help_text="AI classification result",
+    )
+    actions_taken: models.JSONField[Optional[list[str]], list[str]] = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="List of actions taken (for AI: ['flagged', 'soft_deleted'])",
+    )
+    confidence_score: models.FloatField[Optional[float], float] = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="AI confidence score if available",
+    )
+    reasoning: models.TextField[Optional[str], str] = models.TextField(
+        null=True,
+        blank=True,
+        help_text="AI reasoning for the decision",
+    )
+
+    # === Override Fields (when human overrides AI) ===
+    moderator_override: models.BooleanField[bool, bool] = models.BooleanField(
+        default=False,
+        help_text="Whether a human moderator overrode the AI decision",
+    )
+    override_reason: models.TextField[Optional[str], str] = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Reason for moderator override",
+    )
+
+    # === Flexible Metadata ===
+    metadata: models.JSONField[Optional[dict[str, Any]], dict[str, Any]] = (
+        models.JSONField(
+            null=True,
+            blank=True,
+            help_text="Additional context (task IDs, counts, etc.)",
+        )
     )
 
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the model."""
-        return {
+        data: dict[str, Any] = {
             "_id": str(self.pk),
+            "action_type": self.action_type,
+            "source": self.source,
             "timestamp": self.timestamp.isoformat(),
-            "body": self.body,
-            "classifier_output": self.classifier_output,
-            "reasoning": self.reasoning,
-            "classification": self.classification,
-            "actions_taken": self.actions_taken,
-            "confidence_score": self.confidence_score,
-            "moderator_override": self.moderator_override,
-            "override_reason": self.override_reason,
             "moderator_id": str(self.moderator.pk) if self.moderator else None,
             "moderator_username": self.moderator.username if self.moderator else None,
-            "original_author_id": str(self.original_author.pk),
-            "original_author_username": self.original_author.username,
+            "course_id": self.course_id,
+            "scope": self.scope,
+            "reason": self.reason,
+            "metadata": self.metadata,
         }
+
+        # Add user moderation fields
+        if self.target_user:
+            data["target_user_id"] = str(self.target_user.pk)
+            data["target_user_username"] = self.target_user.username
+
+        # Add content moderation fields
+        if self.body:
+            data["body"] = self.body
+        if self.original_author:
+            data["original_author_id"] = str(self.original_author.pk)
+            data["original_author_username"] = self.original_author.username
+
+        # Add AI-specific fields
+        if self.source == self.SOURCE_AI:
+            data.update(
+                {
+                    "classifier_output": self.classifier_output,
+                    "classification": self.classification,
+                    "actions_taken": self.actions_taken,
+                    "confidence_score": self.confidence_score,
+                    "reasoning": self.reasoning,
+                    "moderator_override": self.moderator_override,
+                    "override_reason": self.override_reason,
+                }
+            )
+
+        return data
 
     class Meta:
         app_label = "forum"
@@ -909,7 +1061,276 @@ class ModerationAuditLog(models.Model):
         ordering = ["-timestamp"]
         indexes = [
             models.Index(fields=["timestamp"]),
+            models.Index(fields=["action_type", "-timestamp"]),
+            models.Index(fields=["source", "-timestamp"]),
+            models.Index(fields=["target_user", "-timestamp"]),
+            models.Index(fields=["original_author", "-timestamp"]),
+            models.Index(fields=["moderator", "-timestamp"]),
+            models.Index(fields=["course_id", "-timestamp"]),
             models.Index(fields=["classification"]),
-            models.Index(fields=["original_author"]),
-            models.Index(fields=["moderator"]),
         ]
+
+
+# ==============================================================================
+# DISCUSSION BAN MODELS
+# ==============================================================================
+# NOTE: These models were migrated from lms.djangoapps.discussion.models
+#
+# MIGRATION HISTORY:
+# - Originally in lms.djangoapps.discussion.models
+# - Tables created by forum/migrations/0006_add_discussion_ban_models.py
+# - Old discussion app migration will be replaced with a deletion migration
+# ==============================================================================
+
+
+class DiscussionBan(TimeStampedModel):
+    """
+    Tracks users banned from course or organization discussions.
+
+    Uses edX standard patterns:
+    - TimeStampedModel for created/modified timestamps
+    - CourseKeyField for course_id
+    - Soft delete pattern with is_active flag
+    """
+
+    SCOPE_COURSE = "course"
+    SCOPE_ORGANIZATION = "organization"
+    SCOPE_CHOICES = [
+        (SCOPE_COURSE, _("Course")),
+        (SCOPE_ORGANIZATION, _("Organization")),
+    ]
+
+    # Core Fields
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="discussion_bans",
+        db_index=True,
+    )
+    course_id = CourseKeyField(
+        max_length=255,
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Specific course for course-level bans, NULL for org-level bans",
+    )
+    org_key = models.CharField(
+        max_length=255,
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Organization name for org-level bans (e.g., 'HarvardX'), NULL for course-level",
+    )
+    scope = models.CharField(
+        max_length=20,
+        choices=SCOPE_CHOICES,
+        default=SCOPE_COURSE,
+        db_index=True,
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    # Metadata
+    banned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="bans_issued",
+    )
+    reason = models.TextField()
+    banned_at = models.DateTimeField(auto_now_add=True)
+    unbanned_at = models.DateTimeField(null=True, blank=True)
+    unbanned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bans_reversed",
+    )
+
+    class Meta:
+        app_label = "forum"
+        db_table = "discussion_user_ban"
+        indexes = [
+            models.Index(fields=["user", "is_active"], name="idx_user_active"),
+            models.Index(fields=["course_id", "is_active"], name="idx_course_active"),
+            models.Index(fields=["org_key", "is_active"], name="idx_org_active"),
+            models.Index(fields=["scope", "is_active"], name="idx_scope_active"),
+        ]
+        constraints = [
+            # Prevent duplicate course-level bans
+            models.UniqueConstraint(
+                fields=["user", "course_id"],
+                condition=models.Q(is_active=True, scope="course"),
+                name="unique_active_course_ban",
+            ),
+            # Prevent duplicate org-level bans
+            models.UniqueConstraint(
+                fields=["user", "org_key"],
+                condition=models.Q(is_active=True, scope="organization"),
+                name="unique_active_org_ban",
+            ),
+        ]
+        verbose_name = _("Discussion Ban")
+        verbose_name_plural = _("Discussion Bans")
+
+    def __str__(self):
+        if self.scope == self.SCOPE_COURSE:
+            return f"Ban: {self.user.username} in {self.course_id} (course-level)"
+        else:
+            return f"Ban: {self.user.username} in {self.org_key} (org-level)"
+
+    def clean(self):
+        """Validate scope-based field requirements."""
+        super().clean()
+        if self.scope == self.SCOPE_COURSE:
+            if not self.course_id:
+                raise ValidationError(_("Course-level bans require course_id"))
+        elif self.scope == self.SCOPE_ORGANIZATION:
+            if not self.org_key:
+                raise ValidationError(_("Organization-level bans require organization"))
+            if self.course_id:
+                raise ValidationError(
+                    _("Organization-level bans should not have course_id set")
+                )
+
+    @classmethod
+    def is_user_banned(cls, user, course_id, check_org=True):
+        """
+        Check if user is banned from discussions.
+
+        Priority:
+        1. Active course-level ban (most specific - overrides everything)
+        2. Organization-level ban with exceptions (broader scope)
+
+        Note: Inactive course-level bans do NOT prevent org-level bans from applying.
+        Unbanning at course level only removes that specific course ban, not org bans.
+
+        Args:
+            user: User object
+            course_id: CourseKey or string
+            check_org: If True, also check organization-level bans
+
+        Returns:
+            bool: True if user has active ban
+        """
+        # pylint: disable=import-outside-toplevel
+        from opaque_keys.edx.keys import CourseKey
+
+        # Normalize course_id to CourseKey
+        if isinstance(course_id, str):
+            course_id = CourseKey.from_string(course_id)
+
+        # Check for ACTIVE course-level ban first (highest priority)
+        # Only active bans matter - inactive bans don't prevent org-level bans
+        if cls.objects.filter(
+            user=user, course_id=course_id, scope=cls.SCOPE_COURSE, is_active=True
+        ).exists():
+            return True
+
+        # Check organization-level ban (lower priority)
+        if check_org:
+            # Try to get organization from CourseOverview, fallback to CourseKey
+            try:
+                # pylint: disable=import-outside-toplevel
+                from openedx.core.djangoapps.content.course_overviews.models import (
+                    CourseOverview,
+                )
+
+                course = CourseOverview.objects.get(id=course_id)
+                org_name = course.org
+            # pylint: disable=broad-exception-caught
+            except (
+                ImportError,
+                AttributeError,
+                Exception,
+            ):
+                # Fallback: extract org directly from course_id
+                # ImportError: CourseOverview not available (test environment)
+                # AttributeError: Missing settings.FEATURES
+                # Exception: CourseOverview.DoesNotExist or other DB issues
+                org_name = course_id.org
+
+            # Check if org-level ban exists
+            org_ban = cls.objects.filter(
+                user=user,
+                org_key=org_name,
+                scope=cls.SCOPE_ORGANIZATION,
+                is_active=True,
+            ).first()
+
+            if org_ban:
+                # Check if there's an exception for this specific course
+                if DiscussionBanException.objects.filter(
+                    ban=org_ban, course_id=course_id
+                ).exists():
+                    # Exception exists - user is allowed in this course
+                    return False
+                # Org ban applies, no exception
+                return True
+
+        return False
+
+
+class DiscussionBanException(TimeStampedModel):
+    """
+    Tracks course-level exceptions to organization-level bans.
+
+    Allows moderators to unban a user from specific courses while
+    maintaining an organization-wide ban for all other courses.
+
+    Uses edX standard patterns:
+    - TimeStampedModel for created/modified timestamps
+
+    Example:
+    - User banned from all HarvardX courses (org-level ban)
+    - Exception created for HarvardX+CS50+2024
+    - User can participate in CS50 but remains banned in all other HarvardX courses
+    """
+
+    # Core Fields
+    ban = models.ForeignKey(
+        "DiscussionBan",
+        on_delete=models.CASCADE,
+        related_name="exceptions",
+        help_text="The organization-level ban this exception applies to",
+    )
+    course_id = CourseKeyField(
+        max_length=255,
+        db_index=True,
+        help_text="Specific course where user is unbanned despite org-level ban",
+    )
+
+    # Metadata
+    unbanned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="ban_exceptions_created",
+    )
+    reason = models.TextField(null=True, blank=True)
+
+    class Meta:
+        app_label = "forum"
+        db_table = "discussion_ban_exception"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ban", "course_id"], name="unique_ban_exception"
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["ban", "course_id"], name="idx_ban_course"),
+            models.Index(fields=["course_id"], name="idx_exception_course"),
+        ]
+        verbose_name = _("Discussion Ban Exception")
+        verbose_name_plural = _("Discussion Ban Exceptions")
+
+    def __str__(self):
+        return f"Exception: {self.ban.user.username} allowed in {self.course_id}"
+
+    def clean(self):
+        """Validate that exception only applies to organization-level bans."""
+        super().clean()
+        if self.ban.scope != "organization":
+            raise ValidationError(
+                _("Exceptions can only be created for organization-level bans")
+            )

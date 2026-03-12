@@ -16,6 +16,20 @@ Unreleased
 
 * Add support for Typesense as the search backend.
 
+[0.4.0] – 2026-03-12
+*********************
+
+Breaking Changes
+----------------
+
+* Drop Python 3.11 support; Python 3.12 is now required.
+* Upgrade typesense-python from 1.x to 2.0. This release requires
+  **Typesense Server >= v30.0** (previously >= v28.0). See the
+  `typesense-python compatibility table
+  <https://github.com/typesense/typesense-python#compatibility>`_
+  for details. If you are running an older Typesense server you must
+  upgrade it before deploying this version of openedx-forum.
+
 0.3.4 – 2025-08-13
 ******************
 

@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.paginator import Paginator
 
-from typesense.client import Client
+from typesense import Client
 from typesense.types.collection import CollectionCreateSchema
 from typesense.types.document import DocumentSchema, SearchParameters
 from typesense.exceptions import ObjectNotFound

@@ -1159,18 +1159,23 @@ class MongoBackend(AbstractBackend):
         return commentable_counts
 
     @classmethod
-    def get_user_voted_ids(cls, user_id: str, vote: str) -> list[str]:
+    def get_user_voted_ids(
+        cls, user_id: str, vote: str, course_id: Optional[str] = None
+    ) -> list[str]:
         """Get the IDs of the posts voted by a user."""
         if vote not in ["up", "down"]:
             raise ValueError("Invalid vote type")
 
         content_model = Contents()
-        contents = content_model.get_list()
+        content_query: dict[str, Any] = {}
+        if course_id:
+            content_query["course_id"] = str(course_id)
+        content_query[f"votes.{vote}"] = user_id
+
+        contents = content_model.get_list(**content_query)
         voted_ids = []
         for content in contents:
-            votes = content["votes"][vote]
-            if user_id in votes:
-                voted_ids.append(content["_id"])
+            voted_ids.append(content["_id"])
 
         return voted_ids
 
@@ -1207,8 +1212,12 @@ class MongoBackend(AbstractBackend):
 
         if params.get("complete"):
             subscribed_thread_ids = cls.find_subscribed_threads(user["external_id"])
-            upvoted_ids = cls.get_user_voted_ids(user["external_id"], "up")
-            downvoted_ids = cls.get_user_voted_ids(user["external_id"], "down")
+            upvoted_ids = cls.get_user_voted_ids(
+                user["external_id"], "up", params.get("course_id")
+            )
+            downvoted_ids = cls.get_user_voted_ids(
+                user["external_id"], "down", params.get("course_id")
+            )
             hash_data.update(
                 {
                     "subscribed_thread_ids": subscribed_thread_ids,

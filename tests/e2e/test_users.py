@@ -624,7 +624,12 @@ def test_update_user_stats(api_client: APIClient, patched_get_backend: Any) -> N
     # Sort the data for expected result (threads, responses, replies)
     expected_result = sorted(
         expected_data.values(),
-        key=lambda val: (val["threads"], val["responses"], val["replies"]),
+        key=lambda val: (
+            val["threads"],
+            val["responses"],
+            val["replies"],
+            val["username"],
+        ),
         reverse=True,
     )
 

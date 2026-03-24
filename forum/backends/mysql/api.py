@@ -1132,7 +1132,9 @@ class MySQLBackend(AbstractBackend):
         return threads
 
     @classmethod
-    def get_user_voted_ids(cls, user_id: str, vote: str) -> list[str]:
+    def get_user_voted_ids(
+        cls, user_id: str, vote: str, course_id: Optional[str] = None
+    ) -> list[str]:
         """Get the IDs of the posts voted by a user."""
         if vote not in ["up", "down"]:
             raise ValueError("Invalid vote type")

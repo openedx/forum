@@ -992,6 +992,7 @@ class MongoBackend(AbstractBackend):
             int(params.get("per_page", 100)),
             commentable_ids=params.get("commentable_ids", []),
             is_moderator=params.get("is_moderator", False),
+            context=params.get("context", "course"),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,

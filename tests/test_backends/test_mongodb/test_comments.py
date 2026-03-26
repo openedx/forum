@@ -2,7 +2,6 @@
 """
 Tests for the `Comment` model.
 """
-
 from forum.backends.mongodb import Comment
 
 

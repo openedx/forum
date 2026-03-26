@@ -1158,6 +1158,7 @@ class MySQLBackend(AbstractBackend):
             params.get("sort_key", ""),
             int(params.get("page", 1)),
             int(params.get("per_page", 100)),
+            context=params.get("context", "course"),
             commentable_ids=params.get("commentable_ids", []),
             is_moderator=params.get("is_moderator", False),
         )

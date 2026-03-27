@@ -106,7 +106,7 @@ def test_comment_thread_creation() -> None:
     assert comment_thread.thread_type == "discussion"
     assert comment_thread.context == "course"
     assert comment_thread.closed is False
-    assert comment_thread.pinned is None
+    assert comment_thread.pinned is False
 
 
 @pytest.mark.django_db

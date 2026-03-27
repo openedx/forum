@@ -238,7 +238,9 @@ class CommentThread(Content):
         max_length=50, choices=CONTEXT_CHOICES, default="course"
     )
     closed: models.BooleanField[bool, bool] = models.BooleanField(default=False)
-    pinned: models.BooleanField[Optional[bool], bool] = models.BooleanField(default=False)
+    pinned: models.BooleanField[Optional[bool], bool] = models.BooleanField(
+        default=False
+    )
     last_activity_at: models.DateTimeField[Optional[datetime], datetime] = (
         models.DateTimeField(null=True, blank=True)
     )

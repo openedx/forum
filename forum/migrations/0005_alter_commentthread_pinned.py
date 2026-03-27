@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('forum', '0004_add_author_username_fields'),
+        ("forum", "0004_add_author_username_fields"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='commentthread',
-            name='pinned',
+            model_name="commentthread",
+            name="pinned",
             field=models.BooleanField(default=False),
         ),
     ]

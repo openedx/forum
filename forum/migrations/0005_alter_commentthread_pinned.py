@@ -3,6 +3,11 @@
 from django.db import migrations, models
 
 
+def backfill_pinned_false(apps, schema_editor):
+    CommentThread = apps.get_model("forum", "CommentThread")
+    CommentThread.objects.filter(pinned__isnull=True).update(pinned=False)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,6 +15,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(backfill_pinned_false, migrations.RunPython.noop),
         migrations.AlterField(
             model_name="commentthread",
             name="pinned",

@@ -122,7 +122,7 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
             anonymous=thread_data.get("anonymous", False),
             anonymous_to_peers=thread_data.get("anonymous_to_peers", False),
             closed=thread_data.get("closed", False),
-            pinned=thread_data.get("pinned"),
+            pinned=thread_data.get("pinned", False),
             last_activity_at=make_aware(thread_data["last_activity_at"]),
             commentable_id=thread_data.get("commentable_id"),
         )

@@ -239,7 +239,7 @@ class CommentThread(Content):
     )
     closed: models.BooleanField[bool, bool] = models.BooleanField(default=False)
     pinned: models.BooleanField[Optional[bool], bool] = models.BooleanField(
-        null=True, blank=True
+        default=False
     )
     last_activity_at: models.DateTimeField[Optional[datetime], datetime] = (
         models.DateTimeField(null=True, blank=True)

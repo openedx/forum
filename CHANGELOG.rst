@@ -15,6 +15,8 @@ Unreleased
 **********
 
 * Add support for Typesense as the search backend.
+* Fix: Set default value for ``pinned`` field on ``CommentThread`` to ``False``
+  to prevent NULL sort bug.
 
 0.3.4 – 2025-08-13
 ******************

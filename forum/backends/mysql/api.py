@@ -1865,6 +1865,7 @@ class MySQLBackend(AbstractBackend):
             thread_type=data.get("thread_type", "discussion"),
             context=data.get("context", "course"),
             last_activity_at=timezone.now(),
+            pinned=data.get("pinned", False),
             **optional_args,
         )
         return str(new_thread.pk)

@@ -3,11 +3,14 @@
 
 import math
 from datetime import datetime, timezone
+from functools import wraps
 from typing import Any, Optional
 
 from bson import ObjectId
 from bson import errors as bson_errors
-from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.utils.timezone import now
 
 from forum.backends.backend import AbstractBackend
 from forum.backends.mongodb.comments import Comment
@@ -15,6 +18,7 @@ from forum.backends.mongodb.contents import Contents
 from forum.backends.mongodb.subscriptions import Subscriptions
 from forum.backends.mongodb.threads import CommentThread
 from forum.backends.mongodb.users import Users
+from forum.backends.mysql.models import DiscussionMuteRecord, ModerationAuditLog
 from forum.constants import RETIRED_BODY, RETIRED_TITLE
 from forum.utils import (
     ForumV2RequestError,
@@ -24,9 +28,77 @@ from forum.utils import (
     str_to_bool,
 )
 
+User = get_user_model()
+
 
 class MongoBackend(AbstractBackend):
     """Mongodb Backend API."""
+
+    @staticmethod
+    def _handle_mute_errors(func: Any) -> Any:
+        """Simple decorator for mute operation error handling."""
+
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except User.DoesNotExist as e:
+                raise ForumV2RequestError(f"User not found: {e}") from e
+            except ValidationError as ve:
+                raise ForumV2RequestError(f"Validation error: {ve}") from ve
+            except ValueError as e:
+                raise ForumV2RequestError(str(e)) from e
+            except Exception as e:
+                operation = func.__name__.replace("_", " ")
+                raise ForumV2RequestError(f"Failed to {operation}: {str(e)}") from e
+
+        return wrapper
+
+    @staticmethod
+    def _create_audit_log(
+        action_type: str,
+        user_id: str,
+        course_id: str,
+        muted_user: Any,
+        muter_user: Any,
+        reason: str = "",
+        **extras: Any,
+    ) -> None:
+        """Create audit log entry for mute operations."""
+        try:
+            ModerationAuditLog(
+                timestamp=datetime.now(timezone.utc),
+                body=f"User {action_type}: {user_id}",
+                classifier_output={
+                    "action_type": action_type,
+                    "course_id": course_id,
+                    "muted_user_id": user_id,
+                    "backend": "mongodb",
+                    **extras,
+                },
+                reasoning=reason or "No reason provided",
+                actions_taken=[f"user_{action_type}"],
+                original_author=muted_user,
+                moderator=muter_user,
+            ).save()
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Don't fail operations due to audit logging issues
+            pass
+
+    @staticmethod
+    def user_has_privileges(user: object) -> bool:
+        """Check if user has any privileges"""
+        # Basic Django privileges
+        if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+            return True
+
+        # Check if user has any forum role or course role
+        return (
+            hasattr(user, "role_set")
+            and user.role_set.exists()
+            or hasattr(user, "courseaccessrole_set")
+            and user.courseaccessrole_set.exists()
+        )
 
     @classmethod
     def update_stats_for_course(
@@ -2046,3 +2118,433 @@ class MongoBackend(AbstractBackend):
             return 0
 
         return model.update(content_id, is_spam=False)
+
+    @classmethod
+    def mute_user(
+        cls,
+        muted_user_id: str,
+        muter_id: str,
+        course_id: str,
+        scope: str = "personal",
+        reason: str = "",
+        requester_is_privileged: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Mute a user using MySQL models (same implementation as MySQL backend).
+
+        Args:
+            muted_user_id: ID of user to mute
+            muter_id: ID of user performing the mute
+            course_id: Course identifier
+            scope: Mute scope ('personal' or 'course')
+            reason: Optional reason for mute
+            requester_is_privileged: Whether requester has course-level privileges
+
+        Returns:
+            Dictionary containing mute record data
+        """
+
+        @cls._handle_mute_errors
+        def _mute_operation() -> dict[str, Any]:
+            muted_user = User.objects.get(pk=int(muted_user_id))
+            muted_by_user = User.objects.get(pk=int(muter_id))
+
+            # Basic validations
+            if muted_user.pk == muted_by_user.pk:
+                raise ValueError("Users cannot mute themselves")
+
+            if cls.user_has_privileges(muted_user):
+                raise ValueError("Staff and privileged users cannot be muted")
+
+            is_privileged = requester_is_privileged or cls.user_has_privileges(
+                muted_by_user
+            )
+            if scope == DiscussionMuteRecord.Scope.COURSE and not is_privileged:
+                raise ValueError("Only privileged users can create course-wide mutes")
+
+            # Check existing mute
+            existing_query = DiscussionMuteRecord.objects.filter(
+                muted_user=muted_user, course_id=course_id, scope=scope, is_active=True
+            )
+            if scope == DiscussionMuteRecord.Scope.PERSONAL:
+                existing_query = existing_query.filter(muted_by=muted_by_user)
+
+            if existing_query.exists():
+                raise ValueError("User is already muted in this scope")
+
+            # Create mute record
+            mute = DiscussionMuteRecord(
+                muted_user=muted_user,
+                muted_by=muted_by_user,
+                course_id=course_id,
+                scope=scope,
+                reason=reason,
+            )
+            mute.full_clean()
+            mute.save()
+
+            # Create audit log
+            cls._create_audit_log(
+                "mute",
+                muted_user_id,
+                course_id,
+                muted_user,
+                muted_by_user,
+                reason,
+                scope=scope,
+            )
+            return mute.to_dict()
+
+        return _mute_operation()
+
+    @classmethod
+    def unmute_user(
+        cls,
+        muted_user_id: str,
+        unmuted_by_id: str,
+        course_id: str,
+        scope: str = "personal",
+        muter_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Unmute a user using MySQL models (same implementation as MySQL backend).
+
+        Args:
+            muted_user_id: ID of user to unmute
+            unmuted_by_id: ID of user performing the unmute
+            course_id: Course identifier
+            scope: Unmute scope ('personal' or 'course')
+            muter_id: Original muter ID (for personal unmutes)
+
+        Returns:
+            Dictionary containing unmute result
+        """
+
+        @cls._handle_mute_errors
+        def _unmute_operation() -> dict[str, Any]:
+            muted_user = User.objects.get(pk=int(muted_user_id))
+            unmuted_by_user = User.objects.get(pk=int(unmuted_by_id))
+
+            if hasattr(cls, "user_has_privileges"):
+                requester_is_privileged = cls.user_has_privileges(
+                    unmuted_by_user,
+                    **kwargs,
+                )
+            else:
+                requester_is_privileged = kwargs.get(
+                    "requester_is_privileged", False
+                ) or getattr(unmuted_by_user, "is_staff", False)
+
+            # Find active mute
+            mute_query = DiscussionMuteRecord.objects.filter(
+                muted_user=muted_user, course_id=course_id, scope=scope, is_active=True
+            )
+            if scope == DiscussionMuteRecord.Scope.PERSONAL and muter_id:
+                muted_by_user = User.objects.get(pk=int(muter_id))
+                mute_query = mute_query.filter(muted_by=muted_by_user)
+
+            mute = mute_query.first()
+            if not mute:
+                raise ValueError("No active mute found")
+
+            # Permission checks
+            if (
+                scope == DiscussionMuteRecord.Scope.COURSE
+                and not requester_is_privileged
+            ):
+                raise ValueError("Only privileged users can unmute course-wide mutes")
+
+            if (
+                scope == DiscussionMuteRecord.Scope.PERSONAL
+                and mute.muted_by.pk != unmuted_by_user.pk
+            ):
+                raise ValueError("Only the original muter can unmute a personal mute")
+
+            # Perform unmute
+            mute.is_active = False
+            mute.unmuted_by = unmuted_by_user  # type: ignore[assignment]
+            mute.unmuted_at = now()
+            mute.save()
+
+            # Create audit log
+            cls._create_audit_log(
+                "unmute",
+                muted_user_id,
+                course_id,
+                muted_user,
+                unmuted_by_user,
+                scope=scope,
+            )
+
+            return {
+                "message": "User unmuted successfully",
+                "muted_user_id": str(muted_user.pk),
+                "unmuted_by_id": str(unmuted_by_user.pk),
+                "course_id": course_id,
+                "scope": scope,
+            }
+
+        return _unmute_operation()
+
+    @classmethod
+    def mute_and_report_user(
+        cls,
+        muted_user_id: str,
+        muter_id: str,
+        course_id: str,
+        scope: str = "personal",
+        reason: str = "",
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Mute a user and create a moderation report using MongoDB backend.
+
+        Args:
+            muted_user_id: ID of user to mute and report
+            muter_id: ID of user performing the action
+            course_id: Course identifier
+            scope: Mute scope ('personal' or 'course')
+            reason: Reason for muting and reporting
+
+        Returns:
+            Dictionary containing mute and report data
+        """
+
+        @cls._handle_mute_errors
+        def _mute_and_report_operation() -> dict[str, Any]:
+            # Mute the user first
+            mute_result = cls.mute_user(
+                muted_user_id=muted_user_id,
+                muter_id=muter_id,
+                course_id=course_id,
+                scope=scope,
+                reason=reason,
+            )
+
+            # Create additional audit log for the reporting aspect
+            try:
+                muter = User.objects.get(id=muter_id)
+                muted_user = User.objects.get(id=muted_user_id)
+                cls._create_audit_log(
+                    "mute_and_report",
+                    muted_user_id,
+                    course_id,
+                    muted_user,
+                    muter,
+                    reason,
+                    reported=True,
+                    mute_id=str(mute_result.get("_id", mute_result.get("id"))),
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                # Don't fail the operation due to audit log issues
+                pass
+
+            # Add reporting flags
+            mute_result["reported"] = True
+            mute_result["action"] = "mute_and_report"
+            return mute_result
+
+        return _mute_and_report_operation()
+
+    @classmethod
+    def get_user_mute_status(
+        cls,
+        muted_user_id: str,
+        course_id: str,
+        requesting_user_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Get mute status for a user using MySQL models (same as MySQL backend).
+
+        Args:
+            muted_user_id: ID of user to check
+            course_id: Course identifier
+            requesting_user_id: ID of user requesting the status
+
+        Returns:
+            Dictionary containing mute status information
+        """
+
+        @cls._handle_mute_errors
+        def _get_status_operation() -> dict[str, Any]:
+            user = User.objects.get(pk=int(muted_user_id))
+            viewer = (
+                User.objects.get(pk=int(requesting_user_id))
+                if requesting_user_id
+                else None
+            )
+
+            # Check for active mutes
+            personal_mutes = DiscussionMuteRecord.objects.filter(
+                muted_user=user,
+                muted_by=viewer,
+                course_id=course_id,
+                scope=DiscussionMuteRecord.Scope.PERSONAL,
+                is_active=True,
+            )
+
+            course_mutes = DiscussionMuteRecord.objects.filter(
+                muted_user=user,
+                course_id=course_id,
+                scope=DiscussionMuteRecord.Scope.COURSE,
+                is_active=True,
+            )
+
+            is_personally_muted = personal_mutes.exists()
+            is_course_muted = course_mutes.exists()
+
+            return {
+                "user_id": muted_user_id,
+                "course_id": course_id,
+                "is_muted": is_personally_muted or is_course_muted,
+                "personal_mute": is_personally_muted,
+                "course_mute": is_course_muted,
+                "mute_details": [mute.to_dict() for mute in personal_mutes]
+                + [mute.to_dict() for mute in course_mutes],
+            }
+
+        return _get_status_operation()
+
+    @classmethod
+    def get_all_muted_users_for_course(
+        cls,
+        course_id: str,
+        requester_id: Optional[str] = None,
+        scope: str = "all",
+        requester_is_privileged: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """
+        Get all muted users in a course using MySQL models with preserved MongoDB filtering logic.
+
+        Args:
+            course_id: Course identifier
+            requester_id: ID of user requesting the list
+            scope: Scope filter ('personal', 'course', or 'all')
+            requester_is_privileged: Whether requester has course-level privileges
+
+        Returns:
+            Dictionary containing list of muted users based on requester permissions
+
+        Authorization:
+            - Learners: Can only see their own personal mutes
+            - Staff: Can see course-wide mutes and all personal mutes
+        """
+        try:
+            # Only verify privileges if the requester_is_privileged flag is False
+            if requester_id and not requester_is_privileged:
+                try:
+                    requester = User.objects.get(pk=int(requester_id))
+                    requester_is_privileged = cls.user_has_privileges(requester)
+                except User.DoesNotExist:
+                    # If requester user does not exist, treat as not privileged and continue.
+                    # This prevents errors from breaking the mute listing for non-existent users.
+                    pass
+
+            query = DiscussionMuteRecord.objects.filter(
+                course_id=course_id, is_active=True
+            )
+
+            # Apply scope-based filtering based on requester role
+            if requester_is_privileged:
+                # Privileged users can see all mutes based on scope requested
+                if scope == "personal":
+                    # Show only personal mutes
+                    query = query.filter(scope=DiscussionMuteRecord.Scope.PERSONAL)
+                elif scope == "course":
+                    # Show only course-wide mutes
+                    query = query.filter(scope=DiscussionMuteRecord.Scope.COURSE)
+                # For "all" scope, show both personal and course mutes
+            else:
+                # Learners can only see their own personal mutes
+                if requester_id:
+                    query = query.filter(
+                        scope=DiscussionMuteRecord.Scope.PERSONAL,
+                        muted_by__pk=int(requester_id),
+                    )
+                else:
+                    query = query.none()
+
+            muted_users = []
+            for mute in query.select_related("muted_user", "muted_by"):
+                # Convert to MongoDB-compatible structure to preserve API compatibility
+                mute_data = mute.to_dict()
+                muted_users.append(mute_data)
+
+            return {
+                "course_id": course_id,
+                "requester_id": requester_id,
+                "scope_filter": scope,
+                "total_count": len(muted_users),
+                "muted_users": muted_users,
+            }
+
+        except Exception as e:
+            raise ForumV2RequestError(f"Failed to get muted users: {str(e)}") from e
+
+    @classmethod
+    def get_muted_users(
+        cls,
+        moderator_id: str,
+        course_id: str,
+        scope: str = "personal",
+        active_only: bool = True,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        """
+        Get list of users muted by a moderator using MySQL models (preserving MongoDB filtering logic).
+
+        Args:
+            moderator_id: ID of the moderator
+            course_id: Course identifier
+            scope: Mute scope filter
+            active_only: Whether to return only active mutes
+
+        Returns:
+            List of muted user records
+        """
+        try:
+            # Base query
+            query = DiscussionMuteRecord.objects.filter(
+                course_id=course_id, muted_by__pk=int(moderator_id)
+            )
+
+            # Apply scope filter (preserving MongoDB logic)
+            if scope != "all":
+                if scope == "personal":
+                    query = query.filter(scope=DiscussionMuteRecord.Scope.PERSONAL)
+                elif scope == "course":
+                    query = query.filter(scope=DiscussionMuteRecord.Scope.COURSE)
+
+            # Apply active filter
+            if active_only:
+                query = query.filter(is_active=True)
+
+            # Get results and convert to expected format (preserving MongoDB structure)
+            result = []
+            for mute_record in query.select_related("muted_user", "muted_by"):
+                mute_dict = mute_record.to_dict()
+                # Ensure MongoDB-compatible structure
+                result.append(
+                    {
+                        "muted_user_id": mute_dict.get("muted_user_id"),
+                        "muter_id": mute_dict.get("muter_id"),
+                        "course_id": mute_dict.get("course_id"),
+                        "scope": mute_dict.get("scope"),
+                        "is_active": mute_dict.get("is_active", True),
+                        "created": mute_dict.get("created"),
+                        "modified": mute_dict.get("modified"),
+                        "muted_at": mute_dict.get("muted_at"),
+                        "reason": mute_dict.get("reason", ""),
+                    }
+                )
+
+            return result
+
+        except User.DoesNotExist as e:
+            raise ForumV2RequestError(f"Moderator not found: {e}") from e
+        except Exception as e:
+            raise ForumV2RequestError(f"Failed to get muted users: {str(e)}") from e

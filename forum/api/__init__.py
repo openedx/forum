@@ -47,11 +47,17 @@ from .threads import (
 )
 from .users import (
     create_user,
+    get_all_muted_users_for_course,
+    get_muted_users,
     get_user,
     get_user_active_threads,
     get_user_course_stats,
+    get_user_mute_status,
     mark_thread_as_read,
+    mute_and_report_user,
+    mute_user,
     retire_user,
+    unmute_user,
     update_user,
     update_username,
     update_users_in_course,
@@ -110,4 +116,10 @@ __all__ = [
     "update_user",
     "update_username",
     "update_users_in_course",
+    "mute_user",
+    "unmute_user",
+    "get_user_mute_status",
+    "get_muted_users",
+    "get_all_muted_users_for_course",
+    "mute_and_report_user",
 ]

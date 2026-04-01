@@ -479,6 +479,155 @@ class AbstractBackend:
         """
         raise NotImplementedError
 
+    # Mute/Unmute functionality
+    @classmethod
+    def mute_user(
+        cls,
+        muted_user_id: str,
+        muter_id: str,
+        course_id: str,
+        scope: str = "personal",
+        reason: str = "",
+        requester_is_privileged: bool = False,
+        **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Mute a user in discussions.
+
+        Args:
+            muted_user_id: ID of user to mute
+            muter_id: ID of user performing the mute
+            course_id: Course identifier
+            scope: Mute scope ('personal' or 'course')
+            reason: Optional reason for mute
+            requester_is_privileged: Whether requester has course-level privileges
+
+        Returns:
+            Dictionary containing mute record data
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def unmute_user(
+        cls,
+        muted_user_id: str,
+        unmuted_by_id: str,
+        course_id: str,
+        scope: str = "personal",
+        muter_id: Optional[str] = None,
+        **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Unmute a user in discussions.
+
+        Args:
+            muted_user_id: ID of user to unmute
+            unmuted_by_id: ID of user performing the unmute
+            course_id: Course identifier
+            scope: Unmute scope ('personal' or 'course')
+            muter_id: Optional filter by original muter (for personal mutes)
+
+        Returns:
+            Dictionary containing unmute operation result
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def get_user_mute_status(
+        cls,
+        muted_user_id: str,
+        course_id: str,
+        requesting_user_id: Optional[str] = None,
+        **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Get mute status for a user in a course.
+
+        Args:
+            muted_user_id: ID of user to check
+            course_id: Course identifier
+            requesting_user_id: ID of user requesting the status
+
+        Returns:
+            Dictionary containing mute status information
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def get_muted_users(
+        cls,
+        moderator_id: str,
+        course_id: str,
+        scope: str = "personal",
+        active_only: bool = True,
+        **kwargs: Any
+    ) -> list[dict[str, Any]]:
+        """
+        Get list of users muted by a moderator.
+
+        Args:
+            moderator_id: ID of the moderator
+            course_id: Course identifier
+            scope: Mute scope filter
+            active_only: Whether to return only active mutes
+
+        Returns:
+            List of muted user records
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def mute_and_report_user(
+        cls,
+        muted_user_id: str,
+        muter_id: str,
+        course_id: str,
+        scope: str = "personal",
+        reason: str = "",
+        **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Mute a user and create a moderation report.
+
+        Args:
+            muted_user_id: ID of user to mute and report
+            muter_id: ID of user performing the action
+            course_id: Course identifier
+            scope: Mute scope ('personal' or 'course')
+            reason: Reason for muting and reporting
+
+        Returns:
+            Dictionary containing mute and report data
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def get_all_muted_users_for_course(
+        cls,
+        course_id: str,
+        requester_id: Optional[str] = None,
+        scope: str = "all",
+        requester_is_privileged: bool = False,
+        **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Get all muted users in a course with role-based access control.
+
+        Args:
+            course_id: Course identifier
+            requester_id: ID of user requesting the list
+            scope: Scope filter ('personal', 'course', or 'all')
+            requester_is_privileged: Whether the requester is a privileged user (staff/instructor/etc)
+
+        Returns:
+            Dictionary containing list of muted users based on requester role and scope
+
+        Authorization:
+            - Learners: Can only see their own personal mutes
+            - Staff: Can see course-wide mutes and all personal mutes
+        """
+        raise NotImplementedError
+
     @staticmethod
     def get_deleted_threads_for_course(
         course_id: str,

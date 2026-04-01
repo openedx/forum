@@ -12,9 +12,10 @@ def is_mysql_backend_enabled(course_id: str | None) -> bool:
     """
     try:
         # pylint: disable=import-outside-toplevel
-        from forum.toggles import ENABLE_MYSQL_BACKEND
         from opaque_keys import InvalidKeyError
         from opaque_keys.edx.keys import CourseKey
+
+        from forum.toggles import ENABLE_MYSQL_BACKEND
     except ImportError:
         return True
 

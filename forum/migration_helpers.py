@@ -25,7 +25,6 @@ from forum.models import (
 )
 from forum.utils import make_aware, get_trunc_title
 
-
 logger = logging.getLogger(__name__)
 
 

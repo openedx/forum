@@ -2,7 +2,7 @@
 # https://open-edx-proposals.readthedocs.io/en/latest/processes/oep-0055-proc-project-maintainers.html
 
 apiVersion: backstage.io/v1alpha1
-kind: ""
+kind: Component
 metadata:
   name: "forum"
   description: "openedx forum app"

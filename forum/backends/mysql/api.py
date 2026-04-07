@@ -984,13 +984,13 @@ class MySQLBackend(AbstractBackend):
             raise exception if object does not exists.
             return object
         """
-        modelss = {
+        models = {
             "CommentThread": CommentThread,
             "Comment": Comment,
         }
 
         try:
-            instance = modelss[model].objects.get(pk=int(obj_id))
+            instance = models[model].objects.get(pk=int(obj_id))
         except ObjectDoesNotExist as exc:
             raise ObjectDoesNotExist from exc
 

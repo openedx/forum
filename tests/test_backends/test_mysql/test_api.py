@@ -7,7 +7,13 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from forum.backends.mysql.api import MySQLBackend as backend
-from forum.backends.mysql.models import AbuseFlagger, CommentThread, CourseStat
+from forum.backends.mysql.models import (
+    AbuseFlagger,
+    Comment,
+    CommentThread,
+    CourseStat,
+    Subscription,
+)
 from forum.serializers.thread import ThreadSerializer
 
 User = get_user_model()
@@ -226,3 +232,538 @@ class TestMongoAPI(unittest.TestCase):
         assert threads["thread_count"] == 2
         for thread in threads["collection"]:
             assert thread["commentable_id"] == "id_2"
+
+
+# Bulk Delete and Count API Tests
+
+
+@pytest.mark.django_db
+def test_get_user_threads_count() -> None:
+    """Test counting user threads across multiple courses."""
+    user = User.objects.create(username="testuser")
+    other_user = User.objects.create(username="otheruser")
+
+    # Create threads for user in different courses
+    CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 1",
+        body="Body 1",
+        thread_type="discussion",
+    )
+    CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 2",
+        body="Body 2",
+        thread_type="discussion",
+    )
+    CommentThread.objects.create(
+        author=user,
+        course_id="course2",
+        title="Thread 3",
+        body="Body 3",
+        thread_type="discussion",
+    )
+    # Create deleted thread (should not be counted)
+    CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Deleted Thread",
+        body="Deleted",
+        thread_type="discussion",
+        is_deleted=True,
+    )
+    # Create thread by other user (should not be counted)
+    CommentThread.objects.create(
+        author=other_user,
+        course_id="course1",
+        title="Other Thread",
+        body="Other",
+        thread_type="discussion",
+    )
+
+    # Test counting across specific courses
+    count = backend.get_user_threads_count(str(user.pk), ["course1", "course2"])
+    assert count == 3
+
+    # Test counting in single course
+    count = backend.get_user_threads_count(str(user.pk), ["course1"])
+    assert count == 2
+
+    # Test counting in course with no threads
+    count = backend.get_user_threads_count(str(user.pk), ["course3"])
+    assert count == 0
+
+
+@pytest.mark.django_db
+def test_get_user_comment_count() -> None:
+    """Test counting user comments across multiple courses."""
+    user = User.objects.create(username="testuser")
+    other_user = User.objects.create(username="otheruser")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create comments for user in different courses
+    Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Comment 1",
+        comment_thread=thread,
+    )
+    Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Comment 2",
+        comment_thread=thread,
+    )
+    Comment.objects.create(
+        author=user,
+        course_id="course2",
+        body="Comment 3",
+        comment_thread=thread,
+    )
+    # Create deleted comment (should not be counted)
+    Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Deleted Comment",
+        comment_thread=thread,
+        is_deleted=True,
+    )
+    # Create comment by other user (should not be counted)
+    Comment.objects.create(
+        author=other_user,
+        course_id="course1",
+        body="Other Comment",
+        comment_thread=thread,
+    )
+
+    # Test counting across specific courses
+    count = backend.get_user_comment_count(str(user.pk), ["course1", "course2"])
+    assert count == 3
+
+    # Test counting in single course
+    count = backend.get_user_comment_count(str(user.pk), ["course1"])
+    assert count == 2
+
+    # Test counting in course with no comments
+    count = backend.get_user_comment_count(str(user.pk), ["course3"])
+    assert count == 0
+
+
+@pytest.mark.django_db
+def test_delete_user_threads() -> None:
+    """Test bulk deletion of user threads."""
+    user = User.objects.create(username="testuser")
+    other_user = User.objects.create(username="otheruser")
+
+    # Create threads
+    thread1 = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 1",
+        body="Body 1",
+        thread_type="discussion",
+    )
+    thread2 = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 2",
+        body="Body 2",
+        thread_type="discussion",
+    )
+    thread3 = CommentThread.objects.create(
+        author=user,
+        course_id="course2",
+        title="Thread 3",
+        body="Body 3",
+        thread_type="discussion",
+    )
+    # Already deleted thread (should be skipped)
+    deleted_thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Deleted Thread",
+        body="Deleted",
+        thread_type="discussion",
+        is_deleted=True,
+    )
+    # Other user's thread (should not be deleted)
+    other_thread = CommentThread.objects.create(
+        author=other_user,
+        course_id="course1",
+        title="Other Thread",
+        body="Other",
+        thread_type="discussion",
+    )
+
+    # Delete threads
+    count = backend.delete_user_threads(str(user.pk), ["course1", "course2"])
+
+    # Verify count
+    assert count == 3
+
+    # Verify threads are soft-deleted
+    thread1.refresh_from_db()
+    thread2.refresh_from_db()
+    thread3.refresh_from_db()
+    assert thread1.is_deleted is True
+    assert thread2.is_deleted is True
+    assert thread3.is_deleted is True
+
+    # Verify already deleted thread unchanged
+    deleted_thread.refresh_from_db()
+    assert deleted_thread.is_deleted is True
+
+    # Verify other user's thread not deleted
+    other_thread.refresh_from_db()
+    assert other_thread.is_deleted is False
+
+
+@pytest.mark.django_db
+def test_delete_user_threads_with_subscriptions() -> None:
+    """Test that thread subscriptions are cleaned up during bulk delete."""
+    user = User.objects.create(username="testuser")
+    subscriber = User.objects.create(username="subscriber")
+
+    # Create thread with subscription
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread with Subscription",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create subscription
+    Subscription.objects.create(
+        subscriber=subscriber,
+        source=thread,
+    )
+
+    # Verify subscription exists
+    assert Subscription.objects.filter(source_object_id=thread.pk).count() == 1
+
+    # Delete threads
+    count = backend.delete_user_threads(str(user.pk), ["course1"])
+    assert count == 1
+
+    # Verify subscription was deleted
+    assert Subscription.objects.filter(source_object_id=thread.pk).count() == 0
+
+
+@pytest.mark.django_db
+def test_delete_user_threads_with_comments() -> None:
+    """Test that thread comments are soft-deleted during bulk thread delete."""
+    user = User.objects.create(username="testuser")
+    commenter = User.objects.create(username="commenter")
+
+    # Create thread
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create comments on the thread
+    response = Comment.objects.create(
+        author=commenter,
+        course_id="course1",
+        body="Response",
+        comment_thread=thread,
+    )
+    reply = Comment.objects.create(
+        author=commenter,
+        course_id="course1",
+        body="Reply",
+        comment_thread=thread,
+        parent=response,
+    )
+
+    # Delete threads
+    count = backend.delete_user_threads(str(user.pk), ["course1"])
+    assert count == 1
+
+    # Verify thread is deleted
+    thread.refresh_from_db()
+    assert thread.is_deleted is True
+
+    # Verify comments are also soft-deleted
+    response.refresh_from_db()
+    reply.refresh_from_db()
+    assert response.is_deleted is True
+    assert reply.is_deleted is True
+
+
+@pytest.mark.django_db
+def test_delete_user_threads_stats_rebuild() -> None:
+    """Test that stats are rebuilt once per course after bulk thread delete."""
+    user = User.objects.create(username="testuser")
+
+    # Create threads in different courses
+    CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 1",
+        body="Body 1",
+        thread_type="discussion",
+    )
+    CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread 2",
+        body="Body 2",
+        thread_type="discussion",
+    )
+    CommentThread.objects.create(
+        author=user,
+        course_id="course2",
+        title="Thread 3",
+        body="Body 3",
+        thread_type="discussion",
+    )
+
+    # Mock build_course_stats to verify it's called efficiently
+    with patch.object(backend, "build_course_stats") as mock_build:
+        backend.delete_user_threads(str(user.pk), ["course1", "course2"])
+
+        # Should be called once per course, not once per thread
+        assert mock_build.call_count == 2
+        mock_build.assert_any_call(str(user.pk), "course1")
+        mock_build.assert_any_call(str(user.pk), "course2")
+
+
+@pytest.mark.django_db
+def test_delete_user_comments_replies_first() -> None:
+    """Test that replies are deleted before responses to avoid redundant work."""
+    user = User.objects.create(username="testuser")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create response and reply by user
+    response = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Response",
+        comment_thread=thread,
+    )
+    reply = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Reply",
+        comment_thread=thread,
+        parent=response,
+    )
+
+    # Delete comments
+    count = backend.delete_user_comments(str(user.pk), ["course1"])
+
+    # Should count both the response and reply
+    assert count == 2
+
+    # Verify both are deleted
+    response.refresh_from_db()
+    reply.refresh_from_db()
+    assert response.is_deleted is True
+    assert reply.is_deleted is True
+
+
+@pytest.mark.django_db
+def test_delete_user_comments_parent_child() -> None:
+    """Test deleting parent comment also deletes its children."""
+    user = User.objects.create(username="testuser")
+    other_user = User.objects.create(username="otheruser")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create response by user with child reply by other user
+    response = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="User Response",
+        comment_thread=thread,
+    )
+    other_reply = Comment.objects.create(
+        author=other_user,
+        course_id="course1",
+        body="Other's Reply",
+        comment_thread=thread,
+        parent=response,
+    )
+
+    # Delete user's comments
+    count = backend.delete_user_comments(str(user.pk), ["course1"])
+
+    # Should delete response and its child reply
+    assert count == 2
+
+    # Verify parent is deleted
+    response.refresh_from_db()
+    assert response.is_deleted is True
+
+    # Verify child is also deleted (even though author is different)
+    other_reply.refresh_from_db()
+    assert other_reply.is_deleted is True
+
+
+@pytest.mark.django_db
+def test_delete_user_comments_stats_rebuild() -> None:
+    """Test that stats are rebuilt once per course after bulk comment delete."""
+    user = User.objects.create(username="testuser")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create comments in different courses
+    Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Comment 1",
+        comment_thread=thread,
+    )
+    Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Comment 2",
+        comment_thread=thread,
+    )
+    Comment.objects.create(
+        author=user,
+        course_id="course2",
+        body="Comment 3",
+        comment_thread=thread,
+    )
+
+    # Mock build_course_stats to verify it's called efficiently
+    with patch.object(backend, "build_course_stats") as mock_build:
+        backend.delete_user_comments(str(user.pk), ["course1", "course2"])
+
+        # Should be called once per course, not once per comment
+        assert mock_build.call_count == 2
+        mock_build.assert_any_call(str(user.pk), "course1")
+        mock_build.assert_any_call(str(user.pk), "course2")
+
+
+@pytest.mark.django_db
+def test_delete_user_comments_skips_already_deleted() -> None:
+    """Test that already deleted comments are not processed."""
+    user = User.objects.create(username="testuser")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create active comment
+    active_comment = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Active Comment",
+        comment_thread=thread,
+    )
+    # Create already deleted comment
+    deleted_comment = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Deleted Comment",
+        comment_thread=thread,
+        is_deleted=True,
+    )
+
+    # Delete comments
+    count = backend.delete_user_comments(str(user.pk), ["course1"])
+
+    # Should only count the active comment
+    assert count == 1
+
+    # Verify active comment is now deleted
+    active_comment.refresh_from_db()
+    assert active_comment.is_deleted is True
+
+    # Verify already deleted comment is unchanged
+    deleted_comment.refresh_from_db()
+    assert deleted_comment.is_deleted is True
+
+
+@pytest.mark.django_db
+def test_delete_user_threads_with_deleted_by() -> None:
+    """Test that deleted_by is recorded when provided."""
+    user = User.objects.create(username="testuser")
+    admin = User.objects.create(username="admin")
+
+    # Create thread
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Delete with deleted_by
+    backend.delete_user_threads(str(user.pk), ["course1"], deleted_by=str(admin.pk))
+
+    # Verify deleted_by is set
+    thread.refresh_from_db()
+    assert thread.is_deleted is True
+    assert thread.deleted_by == admin
+
+
+@pytest.mark.django_db
+def test_delete_user_comments_with_deleted_by() -> None:
+    """Test that deleted_by is recorded for comments when provided."""
+    user = User.objects.create(username="testuser")
+    admin = User.objects.create(username="admin")
+
+    thread = CommentThread.objects.create(
+        author=user,
+        course_id="course1",
+        title="Thread",
+        body="Body",
+        thread_type="discussion",
+    )
+
+    # Create comment
+    comment = Comment.objects.create(
+        author=user,
+        course_id="course1",
+        body="Comment",
+        comment_thread=thread,
+    )
+
+    # Delete with deleted_by
+    backend.delete_user_comments(str(user.pk), ["course1"], deleted_by=str(admin.pk))
+
+    # Verify deleted_by is set
+    comment.refresh_from_db()
+    assert comment.is_deleted is True
+    assert comment.deleted_by == admin

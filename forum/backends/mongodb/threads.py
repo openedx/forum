@@ -420,3 +420,40 @@ class CommentThread(BaseContents):
                     threads_restored += 1
 
         return threads_restored
+
+    def delete_user_threads(
+        self, user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """
+        Deletes (soft deletes) all non-deleted threads of user in the given course_ids.
+
+        Args:
+            user_id: The ID of the user whose threads to delete
+            course_ids: List of course IDs to delete threads from
+            deleted_by: The ID of the user performing the deletion (optional)
+
+        Returns:
+            int: Number of threads deleted
+        """
+        from forum import api as forum_api  # pylint: disable=import-outside-toplevel
+
+        query_params = {
+            "course_id": {"$in": course_ids},
+            "author_id": str(user_id),
+            "is_deleted": {"$ne": True},
+        }
+
+        threads_deleted = 0
+        threads = self.get_list(**query_params)
+
+        for thread in threads:
+            thread_id = thread.get("_id")
+            course_id = thread.get("course_id")
+            if thread_id:
+                # Use the soft delete from forum API, which handles comments and stats
+                forum_api.delete_thread(
+                    thread_id, course_id=course_id, deleted_by=deleted_by
+                )
+                threads_deleted += 1
+
+        return threads_deleted

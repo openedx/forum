@@ -1802,6 +1802,151 @@ class MySQLBackend(AbstractBackend):
 
         return count
 
+    @classmethod
+    def get_user_threads_count(cls, user_id: str, course_ids: list[str]) -> int:
+        """
+        Returns the count of non-deleted threads for a user in the given
+        course_ids.
+
+        Args:
+            user_id: The user ID whose threads to count
+            course_ids: List of course IDs to search within
+
+        Returns:
+            int: Count of non-deleted threads
+        """
+        return CommentThread.objects.filter(
+            author_id=user_id, course_id__in=course_ids, is_deleted=False
+        ).count()
+
+    @classmethod
+    def get_user_comment_count(cls, user_id: str, course_ids: list[str]) -> int:
+        """
+        Returns the count of non-deleted comments (responses and replies)
+        for a user in the given course_ids.
+
+        Args:
+            user_id: The user ID whose comments to count
+            course_ids: List of course IDs to search within
+
+        Returns:
+            int: Count of non-deleted comments
+        """
+        return Comment.objects.filter(
+            author_id=user_id, course_id__in=course_ids, is_deleted=False
+        ).count()
+
+    @classmethod
+    def delete_user_threads(
+        cls, user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """
+        Soft deletes all non-deleted threads for a user in the given
+        course_ids.
+
+        Args:
+            user_id: The user ID whose threads to delete
+            course_ids: List of course IDs to delete from
+            deleted_by: The user ID performing the deletion (for audit trail)
+
+        Returns:
+            int: Number of threads deleted
+        """
+        # Get all non-deleted threads for this user in the specified courses
+        threads = CommentThread.objects.filter(
+            author_id=user_id, course_id__in=course_ids, is_deleted=False
+        )
+
+        count = 0
+        # Track affected (user_id, course_id) pairs for stats rebuild
+        affected_courses = set()
+
+        # Delete each thread individually to properly handle stats and
+        # associated comments
+        for thread in threads:
+            # Soft delete all comments associated with this thread
+            cls.soft_delete_comments_of_a_thread(str(thread.pk), deleted_by)
+
+            # Delete subscriptions for this thread
+            cls.delete_subscriptions_of_a_thread(str(thread.pk))
+
+            # Soft delete the thread itself
+            result = cls.soft_delete_thread(str(thread.pk), deleted_by)
+            if result:
+                count += 1
+
+                # Track course for stats rebuild if not anonymous
+                if not (thread.anonymous or thread.anonymous_to_peers):
+                    affected_courses.add((user_id, thread.course_id))
+
+        # Rebuild stats once per affected course (more efficient than per-thread)
+        for affected_user_id, affected_course_id in affected_courses:
+            cls.build_course_stats(affected_user_id, affected_course_id)
+
+        return count
+
+    @classmethod
+    def delete_user_comments(
+        cls, user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """
+        Soft deletes all non-deleted comments for a user in the given
+        course_ids.
+
+        Args:
+            user_id: The user ID whose comments to delete
+            course_ids: List of course IDs to delete from
+            deleted_by: The user ID performing the deletion (for audit trail)
+
+        Returns:
+            int: Number of comments deleted (responses + replies)
+        """
+        # Delete replies first, then responses to avoid processing
+        # already-deleted child comments (since deleting a parent also deletes children)
+        count = 0
+        # Track affected (user_id, course_id) pairs for stats rebuild
+        affected_courses = set()
+
+        # First, delete all replies (comments with a parent)
+        replies = Comment.objects.filter(
+            author_id=user_id,
+            course_id__in=course_ids,
+            is_deleted=False,
+            parent__isnull=False,
+        )
+        for reply in replies:
+            responses_deleted, replies_deleted = cls.soft_delete_comment(
+                str(reply.pk), deleted_by
+            )
+            count += responses_deleted + replies_deleted
+
+            # Track course for stats rebuild if not anonymous
+            if not (reply.anonymous or reply.anonymous_to_peers):
+                affected_courses.add((user_id, reply.course_id))
+
+        # Then, delete all responses (comments without a parent)
+        responses = Comment.objects.filter(
+            author_id=user_id,
+            course_id__in=course_ids,
+            is_deleted=False,
+            parent__isnull=True,
+        )
+        for response in responses:
+            responses_deleted, replies_deleted = cls.soft_delete_comment(
+                str(response.pk), deleted_by
+            )
+            count += responses_deleted + replies_deleted
+
+            # Track course for stats rebuild if not anonymous
+            if not (response.anonymous or response.anonymous_to_peers):
+                affected_courses.add((user_id, response.course_id))
+
+        # Rebuild stats once per affected course (more efficient than per-comment)
+        for affected_user_id, affected_course_id in affected_courses:
+            cls.build_course_stats(affected_user_id, affected_course_id)
+
+        return count
+
     @staticmethod
     def get_commentables_counts_based_on_type(course_id: str) -> dict[str, Any]:
         """Return commentables counts in a course based on thread's type."""

@@ -472,3 +472,38 @@ def restore_user_deleted_comments(
     return backend.restore_user_deleted_comments(
         user_id, course_ids, restored_by=restored_by
     )
+
+
+def get_user_comment_count(user_id: str, course_ids: list[str]) -> int:
+    """
+    Get the count of non-deleted comments for a user across courses.
+
+    Args:
+        user_id (str): The ID of the user whose comments to count
+        course_ids (list): List of course IDs to search in
+
+    Returns:
+        int: Number of non-deleted comments
+    """
+    backend = get_backend(course_ids[0])()
+    return backend.get_user_comment_count(user_id, course_ids)
+
+
+def delete_user_comments(
+    user_id: str,
+    course_ids: list[str],
+    deleted_by: Optional[str] = None,
+) -> int:
+    """
+    Delete all comments for a user across courses.
+
+    Args:
+        user_id (str): The ID of the user whose comments to delete
+        course_ids (list): List of course IDs to delete comments from
+        deleted_by (str, optional): The ID of the user performing the deletion
+
+    Returns:
+        int: Number of comments deleted
+    """
+    backend = get_backend(course_ids[0])()
+    return backend.delete_user_comments(user_id, course_ids, deleted_by=deleted_by)

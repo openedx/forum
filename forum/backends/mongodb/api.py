@@ -1768,6 +1768,48 @@ class MongoBackend(AbstractBackend):
         )
 
     @staticmethod
+    def get_user_threads_count(user_id: str, course_ids: list[str]) -> int:
+        """Get count of non-deleted threads for a user in given courses."""
+        query_params = {
+            "course_id": {"$in": course_ids},
+            "author_id": str(user_id),
+            "is_deleted": {"$ne": True},
+            "_type": "CommentThread",
+        }
+        # pylint: disable=protected-access
+        return CommentThread()._collection.count_documents(query_params)
+
+    @staticmethod
+    def get_user_comment_count(user_id: str, course_ids: list[str]) -> int:
+        """Get count of non-deleted comments for a user in given courses."""
+        query_params = {
+            "course_id": {"$in": course_ids},
+            "author_id": str(user_id),
+            "is_deleted": {"$ne": True},
+            "_type": "Comment",
+        }
+        # pylint: disable=protected-access
+        return Comment()._collection.count_documents(query_params)
+
+    @staticmethod
+    def delete_user_threads(
+        user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """Delete all threads for a user in given courses."""
+        return CommentThread().delete_user_threads(
+            user_id, course_ids, deleted_by=deleted_by
+        )
+
+    @staticmethod
+    def delete_user_comments(
+        user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """Delete all comments for a user in given courses."""
+        return Comment().delete_user_comments(
+            user_id, course_ids, deleted_by=deleted_by
+        )
+
+    @staticmethod
     def create_thread(data: dict[str, Any]) -> str:
         """Create thread."""
         new_thread_id = CommentThread().insert(

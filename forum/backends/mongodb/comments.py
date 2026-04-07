@@ -564,3 +564,40 @@ class Comment(BaseContents):
                     comments_restored += 1
 
         return comments_restored
+
+    def delete_user_comments(
+        self, user_id: str, course_ids: list[str], deleted_by: Optional[str] = None
+    ) -> int:
+        """
+        Deletes (soft deletes) all non-deleted comments of user in the given course_ids.
+
+        Args:
+            user_id: The ID of the user whose comments to delete
+            course_ids: List of course IDs to delete comments from
+            deleted_by: The ID of the user performing the deletion (optional)
+
+        Returns:
+            int: Number of comments deleted
+        """
+        from forum import api as forum_api  # pylint: disable=import-outside-toplevel
+
+        query_params = {
+            "course_id": {"$in": course_ids},
+            "author_id": str(user_id),
+            "is_deleted": {"$ne": True},
+        }
+
+        comments_deleted = 0
+        comments = self.get_list(**query_params)
+
+        for comment in comments:
+            comment_id = comment.get("_id")
+            course_id = comment.get("course_id")
+            if comment_id:
+                # Use forum_api.delete_comment which supports deleted_by parameter
+                forum_api.delete_comment(
+                    comment_id, course_id=course_id, deleted_by=deleted_by
+                )
+                comments_deleted += 1
+
+        return comments_deleted

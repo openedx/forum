@@ -10,6 +10,7 @@ from bson import ObjectId
 from bson import errors as bson_errors
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.db.models import Q
 from django.utils.timezone import now
 
 from forum.backends.backend import AbstractBackend
@@ -2413,39 +2414,45 @@ class MongoBackend(AbstractBackend):
         @cls._handle_mute_errors
         def _get_status_operation() -> dict[str, Any]:
             user = User.objects.get(pk=int(muted_user_id))
-            viewer = (
-                User.objects.get(pk=int(requesting_user_id))
-                if requesting_user_id
-                else None
-            )
 
-            # Check for active mutes
-            personal_mutes = DiscussionMuteRecord.objects.filter(
+            # Optimize: Use single query to get all active mutes for this user in this course
+            mutes_query = DiscussionMuteRecord.objects.filter(
                 muted_user=user,
-                muted_by=viewer,
                 course_id=course_id,
-                scope=DiscussionMuteRecord.Scope.PERSONAL,
                 is_active=True,
             )
 
-            course_mutes = DiscussionMuteRecord.objects.filter(
-                muted_user=user,
-                course_id=course_id,
-                scope=DiscussionMuteRecord.Scope.COURSE,
-                is_active=True,
-            )
+            # Filter personal mutes if requesting_user_id is provided
+            if requesting_user_id:
+                mutes_query = mutes_query.filter(
+                    Q(scope=DiscussionMuteRecord.Scope.COURSE)
+                    | Q(
+                        scope=DiscussionMuteRecord.Scope.PERSONAL,
+                        muted_by__pk=int(requesting_user_id),
+                    )
+                )
+            else:
+                # If no requesting_user_id, only return course-wide mutes
+                mutes_query = mutes_query.filter(
+                    scope=DiscussionMuteRecord.Scope.COURSE
+                )
 
-            is_personally_muted = personal_mutes.exists()
-            is_course_muted = course_mutes.exists()
+            # Execute single query and separate by scope
+            all_mutes = list(mutes_query)
+            personal_mutes = [
+                m for m in all_mutes if m.scope == DiscussionMuteRecord.Scope.PERSONAL
+            ]
+            course_mutes = [
+                m for m in all_mutes if m.scope == DiscussionMuteRecord.Scope.COURSE
+            ]
 
             return {
                 "user_id": muted_user_id,
                 "course_id": course_id,
-                "is_muted": is_personally_muted or is_course_muted,
-                "personal_mute": is_personally_muted,
-                "course_mute": is_course_muted,
-                "mute_details": [mute.to_dict() for mute in personal_mutes]
-                + [mute.to_dict() for mute in course_mutes],
+                "is_muted": len(all_mutes) > 0,
+                "personal_mute": len(personal_mutes) > 0,
+                "course_mute": len(course_mutes) > 0,
+                "mute_details": [mute.to_dict() for mute in all_mutes],
             }
 
         return _get_status_operation()

@@ -1,8 +1,8 @@
 """Client backend for forum v2."""
 
+import datetime as dt
 import math
 import random
-from datetime import timedelta
 from functools import wraps
 from typing import Any, Dict, Optional, Union, Callable, TypeVar
 
@@ -38,6 +38,7 @@ from forum.backends.mysql.models import (
     ForumUser,
     HistoricalAbuseFlagger,
     LastReadTime,
+    ModerationAuditLog,
     ReadState,
     Subscription,
     UserVote,
@@ -1458,8 +1459,8 @@ class MySQLBackend(AbstractBackend):
         comments_updated_at = comments.aggregate(Max("updated_at"))["updated_at__max"]
 
         updated_at = max(
-            threads_updated_at or timezone.now() - timedelta(days=365 * 100),
-            comments_updated_at or timezone.now() - timedelta(days=365 * 100),
+            threads_updated_at or timezone.now() - dt.timedelta(days=365 * 100),
+            comments_updated_at or timezone.now() - dt.timedelta(days=365 * 100),
         )
 
         # Count deleted content
@@ -2714,6 +2715,37 @@ class MySQLBackend(AbstractBackend):
         else:
             return cls.update_comment(content_id, **update_data)
 
+    @staticmethod
+    def _create_audit_log(
+        action_type: str,
+        user_id: str,
+        course_id: str,
+        muted_user: Any,
+        muter_user: Any,
+        reason: str = "",
+        **extras: Any,
+    ) -> None:
+        """Create audit log entry for mute operations."""
+        try:
+            ModerationAuditLog(
+                timestamp=dt.datetime.now(dt.timezone.utc),
+                body=f"User {action_type}: {user_id}",
+                classifier_output={
+                    "action_type": action_type,
+                    "course_id": course_id,
+                    "muted_user_id": user_id,
+                    "backend": "mysql",
+                    **extras,
+                },
+                reasoning=reason or "No reason provided",
+                actions_taken=[f"user_{action_type}"],
+                original_author=muted_user,
+                moderator=muter_user,
+            ).save()
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Don't fail operations due to audit logging issues
+            pass
+
     # Mute/Unmute Methods for MySQL Backend
     @classmethod
     @_handle_mute_errors
@@ -2769,6 +2801,18 @@ class MySQLBackend(AbstractBackend):
         )
         mute.full_clean()
         mute.save()
+
+        # Create audit log
+        cls._create_audit_log(
+            "mute",
+            muted_user_id,
+            course_id,
+            muted_user,
+            muted_by_user,
+            reason,
+            scope=scope,
+        )
+
         return mute.to_dict()
 
     @classmethod
@@ -2806,9 +2850,9 @@ class MySQLBackend(AbstractBackend):
         mute_query = DiscussionMuteRecord.objects.filter(
             muted_user=muted_user, course_id=course_id, scope=scope, is_active=True
         )
+        # Optimize: Use ID directly instead of fetching user object
         if scope == DiscussionMuteRecord.Scope.PERSONAL and muter_id:
-            muted_by_user = User.objects.get(pk=int(muter_id))
-            mute_query = mute_query.filter(muted_by=muted_by_user)
+            mute_query = mute_query.filter(muted_by__pk=int(muter_id))
 
         mute = mute_query.first()
         if not mute:
@@ -2829,6 +2873,16 @@ class MySQLBackend(AbstractBackend):
         mute.unmuted_by = unmuted_by_user
         mute.unmuted_at = timezone.now()
         mute.save()
+
+        # Create audit log
+        cls._create_audit_log(
+            "unmute",
+            muted_user_id,
+            course_id,
+            muted_user,
+            unmuted_by_user,
+            scope=scope,
+        )
 
         return {
             "message": "User unmuted successfully",
@@ -2868,7 +2922,25 @@ class MySQLBackend(AbstractBackend):
             course_id=course_id,
             scope=scope,
             reason=reason,
+            **kwargs,
         )
+
+        try:
+            muted_user = User.objects.get(id=muted_user_id)
+            muter = User.objects.get(id=muter_id)
+            cls._create_audit_log(
+                "mute_and_report",
+                muted_user_id,
+                course_id,
+                muted_user,
+                muter,
+                reason,
+                reported=True,
+                mute_id=str(mute_result.get("id")),
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Don't fail the operation due to audit log issues
+            pass
 
         # Add reporting flags
         mute_result["reported"] = True
@@ -2896,37 +2968,43 @@ class MySQLBackend(AbstractBackend):
             Dictionary containing mute status information
         """
         user = User.objects.get(pk=int(muted_user_id))
-        viewer = (
-            User.objects.get(pk=int(requesting_user_id)) if requesting_user_id else None
-        )
 
-        # Check for active mutes
-        personal_mutes = DiscussionMuteRecord.objects.filter(
+        # Optimize: Use single query to get all active mutes for this user in this course
+        mutes_query = DiscussionMuteRecord.objects.filter(
             muted_user=user,
-            muted_by=viewer,
             course_id=course_id,
-            scope=DiscussionMuteRecord.Scope.PERSONAL,
             is_active=True,
         )
 
-        course_mutes = DiscussionMuteRecord.objects.filter(
-            muted_user=user,
-            course_id=course_id,
-            scope=DiscussionMuteRecord.Scope.COURSE,
-            is_active=True,
-        )
+        # Filter personal mutes if requesting_user_id is provided
+        if requesting_user_id:
+            mutes_query = mutes_query.filter(
+                Q(scope=DiscussionMuteRecord.Scope.COURSE)
+                | Q(
+                    scope=DiscussionMuteRecord.Scope.PERSONAL,
+                    muted_by__pk=int(requesting_user_id),
+                )
+            )
+        else:
+            # If no requesting_user_id, only return course-wide mutes
+            mutes_query = mutes_query.filter(scope=DiscussionMuteRecord.Scope.COURSE)
 
-        is_personally_muted = personal_mutes.exists()
-        is_course_muted = course_mutes.exists()
+        # Execute single query and separate by scope
+        all_mutes = list(mutes_query)
+        personal_mutes = [
+            m for m in all_mutes if m.scope == DiscussionMuteRecord.Scope.PERSONAL
+        ]
+        course_mutes = [
+            m for m in all_mutes if m.scope == DiscussionMuteRecord.Scope.COURSE
+        ]
 
         return {
             "user_id": muted_user_id,
             "course_id": course_id,
-            "is_muted": is_personally_muted or is_course_muted,
-            "personal_mute": is_personally_muted,
-            "course_mute": is_course_muted,
-            "mute_details": [mute.to_dict() for mute in personal_mutes]
-            + [mute.to_dict() for mute in course_mutes],
+            "is_muted": len(all_mutes) > 0,
+            "personal_mute": len(personal_mutes) > 0,
+            "course_mute": len(course_mutes) > 0,
+            "mute_details": [mute.to_dict() for mute in all_mutes],
         }
 
     @classmethod

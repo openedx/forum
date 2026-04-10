@@ -4,7 +4,7 @@ import datetime as dt
 import math
 import random
 from functools import wraps
-from typing import Any, Dict, Optional, Union, Callable, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.contrib.contenttypes.models import ContentType
@@ -81,9 +81,6 @@ class MySQLBackend(AbstractBackend):
         if muted_user.pk == muted_by_user.pk:
             raise ValidationError("Users cannot mute themselves")
 
-        if cls.user_has_privileges(muted_user):
-            raise ValidationError("Staff and privileged users cannot be muted")
-
         return muted_user, muted_by_user
 
     @classmethod
@@ -126,19 +123,84 @@ class MySQLBackend(AbstractBackend):
             return None
 
     @staticmethod
-    def user_has_privileges(user: object) -> bool:
-        """Check if user has any privileges"""
-        # Basic Django privileges
+    def user_has_privileges(user: object, course_id: Optional[str] = None) -> bool:
+        """Check if user has any privileges (forum roles or course access).
+
+        Args:
+            user: User object to check
+            course_id: Optional course ID to check privileges for specific course.
+
+        Returns:
+            True if user has any privileges
+        """
+        # Global Django staff
         if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
             return True
 
-        # Check if user has any forum role or course role
+        # Check for any forum role or course access role
+        if course_id:
+            if (
+                hasattr(user, "role_set")
+                and user.role_set.filter(course_id=course_id).exists()
+            ):
+                return True
+            if (
+                hasattr(user, "courseaccessrole_set")
+                and user.courseaccessrole_set.filter(course_id=course_id).exists()
+            ):
+                return True
+            return False
+
+        # Check if user has any role across all courses
         return (
             hasattr(user, "role_set")
             and user.role_set.exists()
             or hasattr(user, "courseaccessrole_set")
             and user.courseaccessrole_set.exists()
         )
+
+    @staticmethod
+    def user_has_moderation_privileges(
+        user: object, course_id: Optional[str] = None
+    ) -> bool:
+        """Check if user has discussion moderation privileges.
+
+        Returns True only for:
+        - Global staff (is_staff or is_superuser)
+        - Discussion moderators, administrators, and community TAs
+
+        Course staff return False.
+
+        Args:
+            user: User object to check
+            course_id: Optional course ID to check for specific course
+
+        Returns:
+            True if user has discussion moderation privileges
+        """
+        # Global staff
+        if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+            return True
+
+        # Check for discussion moderation roles only
+        if hasattr(user, "role_set"):
+            protected_roles = {
+                "Moderator",
+                "Administrator",
+                "Community TA",
+                "Group Moderator",
+            }
+
+            if course_id:
+                role_names = user.role_set.filter(course_id=course_id).values_list(
+                    "name", flat=True
+                )
+            else:
+                role_names = user.role_set.values_list("name", flat=True)
+
+            return any(role in protected_roles for role in role_names)
+
+        return False
 
     @classmethod
     def flag_as_abuse(
@@ -2775,6 +2837,14 @@ class MySQLBackend(AbstractBackend):
         """
         muted_user, muted_by_user = cls._validate_mute_users(muted_user_id, muter_id)
 
+        # Check if user being muted has discussion moderation privileges
+        # Only moderators and global staff are protected - course staff can be muted
+        if cls.user_has_moderation_privileges(muted_user, course_id):
+            raise ValidationError(
+                "Discussion moderators and global staff cannot be muted"
+            )
+
+        # Check if requester has privileges (global check is fine for requester)
         is_privileged = requester_is_privileged or cls.user_has_privileges(
             muted_by_user
         )

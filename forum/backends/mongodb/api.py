@@ -87,19 +87,50 @@ class MongoBackend(AbstractBackend):
             pass
 
     @staticmethod
-    def user_has_privileges(user: object) -> bool:
-        """Check if user has any privileges"""
-        # Basic Django privileges
+    def user_has_privileges(user: object, course_id: Optional[str] = None) -> bool:
+        """Check if user has discussion moderation privileges.
+
+        Returns True only for:
+        - Global staff (is_staff or is_superuser)
+        - Discussion moderators, administrators, and community TAs
+
+        Course staff and instructors return False - they do NOT have moderation privileges.
+
+        Args:
+            user: User object to check
+            course_id: Optional course ID to check privileges for specific course.
+                      If None, checks if user has ANY privileges across all courses.
+
+        Returns:
+            True if user has discussion moderation privileges (in specified course if course_id provided)
+        """
+        # Global Django staff
         if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
             return True
 
-        # Check if user has any forum role or course role
-        return (
-            hasattr(user, "role_set")
-            and user.role_set.exists()
-            or hasattr(user, "courseaccessrole_set")
-            and user.courseaccessrole_set.exists()
-        )
+        # Check for discussion forum roles (Moderator, Administrator, Community TA, Group Moderator)
+        # These are stored in role_set with specific names
+        # Course staff roles are in courseaccessrole_set, which we intentionally exclude
+        if hasattr(user, "role_set"):
+            protected_roles = {
+                "Moderator",
+                "Administrator",
+                "Community TA",
+                "Group Moderator",
+            }
+
+            if course_id:
+                # Check for discussion roles in specific course
+                role_names = user.role_set.filter(course_id=course_id).values_list(
+                    "name", flat=True
+                )
+            else:
+                # Check for discussion roles in any course
+                role_names = user.role_set.values_list("name", flat=True)
+
+            return any(role in protected_roles for role in role_names)
+
+        return False
 
     @classmethod
     def update_stats_for_course(
@@ -2197,9 +2228,14 @@ class MongoBackend(AbstractBackend):
             if muted_user.pk == muted_by_user.pk:
                 raise ValueError("Users cannot mute themselves")
 
-            if cls.user_has_privileges(muted_user):
-                raise ValueError("Staff and privileged users cannot be muted")
+            # Check if user being muted has discussion moderation privileges in this course
+            # (Global staff and discussion moderators cannot be muted, but course staff can be)
+            if cls.user_has_privileges(muted_user, course_id):
+                raise ValueError(
+                    "Discussion moderators and global staff cannot be muted"
+                )
 
+            # Check if requester has privileges (global check is fine for requester)
             is_privileged = requester_is_privileged or cls.user_has_privileges(
                 muted_by_user
             )

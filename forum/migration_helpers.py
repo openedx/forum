@@ -2,6 +2,7 @@
 
 from typing import Any
 import logging
+from datetime import datetime
 
 from django.contrib.auth.models import User  # pylint: disable=E5142
 from django.core.management.base import OutputWrapper
@@ -37,6 +38,23 @@ def get_user_or_none(user_id: Any) -> User | None:
         return None
 
 
+def parse_mongo_datetime(value: Any) -> datetime | None:
+    """
+    Parse a MongoDB datetime value to a timezone-aware datetime.
+
+    MongoDB may return datetime as string or datetime object.
+    This function handles both cases.
+    """
+    if not value:
+        return None
+
+    if isinstance(value, str):
+        # Parse ISO format string, handle 'Z' suffix for UTC
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    return make_aware(value)
+
+
 def get_all_course_ids(db: Database[dict[str, Any]]) -> list[str]:
     """Get all course IDs from MongoDB."""
     return db.contents.distinct("course_id")
@@ -56,9 +74,7 @@ def migrate_users(db: Database[dict[str, Any]], course_id: str) -> None:
         )
 
         for stat in user_data.get("course_stats", []):
-            last_activity_at = stat.get("last_activity_at")
-            if last_activity_at:
-                last_activity_at = make_aware(last_activity_at)
+            last_activity_at = parse_mongo_datetime(stat.get("last_activity_at"))
             if stat["course_id"] == course_id:
                 CourseStat.objects.update_or_create(
                     user=user,
@@ -69,6 +85,9 @@ def migrate_users(db: Database[dict[str, Any]], course_id: str) -> None:
                         "threads": stat.get("threads", 0),
                         "responses": stat.get("responses", 0),
                         "replies": stat.get("replies", 0),
+                        "deleted_threads": stat.get("deleted_threads", 0),
+                        "deleted_responses": stat.get("deleted_responses", 0),
+                        "deleted_replies": stat.get("deleted_replies", 0),
                         "last_activity_at": last_activity_at,
                     },
                 )
@@ -110,6 +129,11 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
         mongo_id=mongo_thread_id,
     )
     if not mongo_content.content_object_id:
+        # Get deleted_by user if deleted_by field exists in MongoDB
+        deleted_by = None
+        if thread_data.get("deleted_by"):
+            deleted_by = get_user_or_none(thread_data["deleted_by"])
+
         thread = CommentThread.objects.create(
             author=author,
             author_username=author_username,
@@ -123,23 +147,57 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
             anonymous_to_peers=thread_data.get("anonymous_to_peers", False),
             closed=thread_data.get("closed", False),
             pinned=thread_data.get("pinned"),
-            created_at=make_aware(thread_data["created_at"]),
-            updated_at=make_aware(thread_data["updated_at"]),
-            last_activity_at=make_aware(thread_data["last_activity_at"]),
+            created_at=parse_mongo_datetime(thread_data["created_at"]),
+            updated_at=parse_mongo_datetime(thread_data["updated_at"]),
+            last_activity_at=parse_mongo_datetime(thread_data["last_activity_at"]),
             commentable_id=thread_data.get("commentable_id"),
+            # Moderation fields
+            is_spam=thread_data.get("is_spam", False),
+            is_deleted=thread_data.get("is_deleted", False),
+            deleted_at=parse_mongo_datetime(thread_data.get("deleted_at")),
+            deleted_by=deleted_by,
+            visible=thread_data.get("visible", True),
         )
         mongo_content.content_object_id = thread.pk
         mongo_content.content_type = thread.content_type
         mongo_content.save()
     else:
+        # Update existing thread with latest data from MongoDB
         thread = CommentThread.objects.get(pk=mongo_content.content_object_id)
+
+        # Get deleted_by user if needed
+        deleted_by = None
+        if thread_data.get("deleted_by"):
+            deleted_by = get_user_or_none(thread_data["deleted_by"])
+
+        # Update all fields that might have changed
+        thread.title = get_trunc_title(thread_data.get("title", ""))
+        thread.body = thread_data["body"]
+        thread.thread_type = thread_data.get("thread_type", "discussion")
+        thread.context = thread_data.get("context", "course")
+        thread.anonymous = thread_data.get("anonymous", False)
+        thread.anonymous_to_peers = thread_data.get("anonymous_to_peers", False)
+        thread.closed = thread_data.get("closed", False)
+        thread.pinned = thread_data.get("pinned")
+        thread.updated_at = parse_mongo_datetime(thread_data["updated_at"])  # type: ignore[assignment]
+        thread.last_activity_at = parse_mongo_datetime(thread_data["last_activity_at"])
+        thread.commentable_id = thread_data.get("commentable_id")  # type: ignore[assignment]
+        # Update moderation fields
+        thread.is_spam = thread_data.get("is_spam", False)
+        thread.is_deleted = thread_data.get("is_deleted", False)
+        thread.deleted_at = parse_mongo_datetime(thread_data.get("deleted_at"))
+        thread.deleted_by = deleted_by  # type: ignore[assignment]
+        thread.visible = thread_data.get("visible", True)
+        thread.save()
 
     create_or_update_edit_history(thread_data)
     create_or_update_abuse_flaggers(thread_data)
     create_votes(thread, thread_data.get("votes", {}))
 
 
-def create_or_update_comment(comment_data: dict[str, Any]) -> None:
+def create_or_update_comment(  # pylint: disable=too-many-statements
+    comment_data: dict[str, Any],
+) -> None:
     """Create or update a comment."""
     author = get_user_or_none(comment_data["author_id"])
     if not author:
@@ -197,6 +255,11 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
         mongo_id=str(comment_data["_id"])
     )
     if not mongo_comment.content_object_id:
+        # Get deleted_by user if deleted_by field exists in MongoDB
+        deleted_by = None
+        if comment_data.get("deleted_by"):
+            deleted_by = get_user_or_none(comment_data["deleted_by"])
+
         comment = Comment.objects.create(
             author=author,
             author_username=author_username,
@@ -209,9 +272,15 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
             anonymous_to_peers=comment_data.get("anonymous_to_peers", False),
             endorsed=comment_data.get("endorsed", False),
             child_count=comment_data.get("child_count", 0),
-            created_at=make_aware(comment_data["created_at"]),
-            updated_at=make_aware(comment_data["updated_at"]),
+            created_at=parse_mongo_datetime(comment_data["created_at"]),
+            updated_at=parse_mongo_datetime(comment_data["updated_at"]),
             depth=1 if parent else 0,
+            # Moderation fields
+            is_spam=comment_data.get("is_spam", False),
+            is_deleted=comment_data.get("is_deleted", False),
+            deleted_at=parse_mongo_datetime(comment_data.get("deleted_at")),
+            deleted_by=deleted_by,
+            visible=comment_data.get("visible", True),
         )
         mongo_comment.content_object_id = comment.pk
         mongo_comment.content_type = comment.content_type
@@ -220,7 +289,28 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
         comment.sort_key = sort_key
         comment.save()
     else:
+        # Update existing comment with latest data from MongoDB
         comment = Comment.objects.get(pk=mongo_comment.content_object_id)
+
+        # Get deleted_by user if needed
+        deleted_by = None
+        if comment_data.get("deleted_by"):
+            deleted_by = get_user_or_none(comment_data["deleted_by"])
+
+        # Update all fields that might have changed
+        comment.body = comment_data["body"]
+        comment.anonymous = comment_data.get("anonymous", False)
+        comment.anonymous_to_peers = comment_data.get("anonymous_to_peers", False)
+        comment.endorsed = comment_data.get("endorsed", False)
+        comment.child_count = comment_data.get("child_count", 0)
+        comment.updated_at = parse_mongo_datetime(comment_data["updated_at"])  # type: ignore[assignment]
+        # Update moderation fields
+        comment.is_spam = comment_data.get("is_spam", False)
+        comment.is_deleted = comment_data.get("is_deleted", False)
+        comment.deleted_at = parse_mongo_datetime(comment_data.get("deleted_at"))
+        comment.deleted_by = deleted_by  # type: ignore[assignment]
+        comment.visible = comment_data.get("visible", True)
+        comment.save()
 
     create_or_update_edit_history(comment_data)
     create_or_update_abuse_flaggers(comment_data)
@@ -268,7 +358,7 @@ def create_or_update_edit_history(content: dict[str, Any]) -> None:
         EditHistory.objects.get_or_create(
             content_object_id=content_object.pk,
             content_type=content_object.content_type,
-            created_at=edit["created_at"],
+            created_at=parse_mongo_datetime(edit["created_at"]),
             editor=editor,
             defaults={
                 "original_body": edit["original_body"],
@@ -352,8 +442,10 @@ def migrate_subscriptions(db: Database[dict[str, Any]], content_id: str) -> None
                 source_content_type=content.content_type,
                 source_object_id=content.pk,
                 defaults={
-                    "created_at": sub.get("created_at", timezone.now()),
-                    "updated_at": sub.get("updated_at", timezone.now()),
+                    "created_at": parse_mongo_datetime(sub.get("created_at"))
+                    or timezone.now(),
+                    "updated_at": parse_mongo_datetime(sub.get("updated_at"))
+                    or timezone.now(),
                 },
             )
 
@@ -390,10 +482,10 @@ def migrate_read_states(db: Database[dict[str, Any]], course_id: str) -> None:
                         LastReadTime.objects.create(
                             read_state=rs,
                             comment_thread=thread,
-                            timestamp=make_aware(timestamp),
+                            timestamp=parse_mongo_datetime(timestamp),
                         )
                     else:
-                        existing_read_time.timestamp = make_aware(timestamp)
+                        existing_read_time.timestamp = parse_mongo_datetime(timestamp)  # type: ignore[assignment]
                         existing_read_time.save()
 
 

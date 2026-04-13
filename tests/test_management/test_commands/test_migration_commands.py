@@ -23,7 +23,6 @@ from forum.models import (
 )
 from forum.utils import get_trunc_title
 
-
 pytestmark = pytest.mark.django_db
 
 

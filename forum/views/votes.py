@@ -2,6 +2,7 @@
 Vote Views
 """
 
+from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -52,6 +53,13 @@ class ThreadVoteView(APIView):
         Returns:
             Response: The HTTP response with the result of the vote operation.
         """
+        set_custom_attribute("forum.operation", "vote_thread")
+        set_custom_attribute("forum.thread_id", thread_id)
+        if "user_id" in request.data:
+            set_custom_attribute("forum.user_id", request.data["user_id"])
+        if "value" in request.data:
+            set_custom_attribute("forum.vote_type", request.data["value"])
+
         try:
             thread_response = update_thread_votes(
                 thread_id, request.data["user_id"], request.data["value"]
@@ -72,8 +80,13 @@ class ThreadVoteView(APIView):
         Returns:
             Response: The HTTP response with the result of the remove vote operation.
         """
+        set_custom_attribute("forum.operation", "remove_vote_thread")
+        set_custom_attribute("forum.thread_id", thread_id)
+        user_id = request.query_params.get("user_id", "")
+        if user_id:
+            set_custom_attribute("forum.user_id", user_id)
+
         try:
-            user_id = request.query_params.get("user_id", "")
             thread_response = delete_thread_vote(thread_id, user_id)
         except (ForumV2RequestError, KeyError) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -117,6 +130,13 @@ class CommentVoteView(APIView):
         Returns:
             Response: The HTTP response with the result of the vote operation.
         """
+        set_custom_attribute("forum.operation", "vote_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+        if "user_id" in request.data:
+            set_custom_attribute("forum.user_id", request.data["user_id"])
+        if "value" in request.data:
+            set_custom_attribute("forum.vote_type", request.data["value"])
+
         try:
             comment_response = update_comment_votes(
                 comment_id, request.data["user_id"], request.data["value"]
@@ -137,8 +157,13 @@ class CommentVoteView(APIView):
         Returns:
             Response: The HTTP response with the result of the remove vote operation.
         """
+        set_custom_attribute("forum.operation", "remove_vote_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+        user_id = request.query_params.get("user_id", "")
+        if user_id:
+            set_custom_attribute("forum.user_id", user_id)
+
         try:
-            user_id = request.query_params.get("user_id", "")
             comment_response = delete_comment_vote(comment_id, user_id)
         except (ForumV2RequestError, KeyError) as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

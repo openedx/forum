@@ -1,5 +1,6 @@
 """Forum Comments API Views."""
 
+from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -38,6 +39,9 @@ class CommentsAPIView(APIView):
         Response:
             The details of the comment for the given comment_id.
         """
+        set_custom_attribute("forum.operation", "get_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+
         try:
             data = get_parent_comment(comment_id)
         except ForumV2RequestError:
@@ -65,8 +69,16 @@ class CommentsAPIView(APIView):
         Response:
             The details of the comment that is created.
         """
+        set_custom_attribute("forum.operation", "create_child_comment")
+        set_custom_attribute("forum.parent_comment_id", comment_id)
+
+        request_data = request.data
+        if "course_id" in request_data:
+            set_custom_attribute("forum.course_id", request_data["course_id"])
+        if "user_id" in request_data:
+            set_custom_attribute("forum.author_id", request_data["user_id"])
+
         try:
-            request_data = request.data
             comment = create_child_comment(
                 comment_id,
                 request_data["body"],
@@ -99,8 +111,20 @@ class CommentsAPIView(APIView):
         Response:
             The details of the comment that is updated.
         """
+        set_custom_attribute("forum.operation", "update_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+
+        # Track what fields are being updated
+        request_data = request.data
+        if request_data:
+            update_fields = [
+                k for k in request_data.keys() if request_data.get(k) is not None
+            ]
+            set_custom_attribute("forum.update_fields", ",".join(update_fields))
+            if "course_id" in request_data:
+                set_custom_attribute("forum.course_id", request_data["course_id"])
+
         try:
-            request_data = request.data
             if anonymous := request_data.get("anonymous"):
                 anonymous = str_to_bool(anonymous)
             if anonymous_to_peers := request_data.get("anonymous_to_peers"):
@@ -146,6 +170,9 @@ class CommentsAPIView(APIView):
         Response:
             The details of the comment that is deleted.
         """
+        set_custom_attribute("forum.operation", "delete_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+
         try:
             deleted_comment = delete_comment(comment_id)
         except ForumV2RequestError:
@@ -179,8 +206,16 @@ class CreateThreadCommentAPIView(APIView):
         Response:
             The details of the comment that is created.
         """
+        set_custom_attribute("forum.operation", "create_parent_comment")
+        set_custom_attribute("forum.thread_id", thread_id)
+
+        request_data = request.data
+        if "course_id" in request_data:
+            set_custom_attribute("forum.course_id", request_data["course_id"])
+        if "user_id" in request_data:
+            set_custom_attribute("forum.author_id", request_data["user_id"])
+
         try:
-            request_data = request.data
             comment = create_parent_comment(
                 thread_id,
                 request_data["body"],

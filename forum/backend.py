@@ -2,6 +2,8 @@
 
 from typing import Callable, Optional
 
+from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
+
 from forum.backends.mongodb.api import MongoBackend
 from forum.backends.mysql.api import MySQLBackend
 
@@ -37,7 +39,15 @@ def get_backend(
     """Return a factory function that lazily loads the backend API based on course_id."""
 
     def _get_backend() -> MongoBackend | MySQLBackend:
-        if is_mysql_backend_enabled(course_id):
+        backend_enabled = is_mysql_backend_enabled(course_id)
+
+        # Track which backend is being used
+        backend_type = "mysql" if backend_enabled else "mongodb"
+        set_custom_attribute("forum.backend", backend_type)
+        if course_id:
+            set_custom_attribute("forum.backend.course_id", str(course_id))
+
+        if backend_enabled:
             return MySQLBackend()
         return MongoBackend()
 

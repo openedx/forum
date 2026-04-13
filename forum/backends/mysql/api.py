@@ -24,6 +24,7 @@ from django.db.models import (
     When,
 )
 from django.utils import timezone
+from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -1686,6 +1687,10 @@ class MySQLBackend(AbstractBackend):
     @classmethod
     def delete_comment(cls, comment_id: str) -> None:
         """Delete comment from comment_id."""
+        set_custom_attribute("forum.backend.operation", "delete_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+        set_custom_attribute("forum.delete_mode", "hard")
+
         comment = Comment.objects.get(pk=comment_id)
         if comment.parent:
             cls.update_child_count_in_parent_comment(str(comment.parent.pk), -1)
@@ -1701,6 +1706,12 @@ class MySQLBackend(AbstractBackend):
         Returns:
             tuple: (responses_deleted, replies_deleted)
         """
+        set_custom_attribute("forum.backend.operation", "delete_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+        set_custom_attribute("forum.delete_mode", "soft")
+        if deleted_by:
+            set_custom_attribute("forum.deleted_by", deleted_by)
+
         comment = Comment.objects.get(pk=comment_id)
         deleted_user: Optional[User] = None
         if deleted_by:
@@ -2044,6 +2055,17 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def update_comment(comment_id: str, **kwargs: Any) -> int:
         """Updates a comment in the database."""
+        # Track comment update
+        set_custom_attribute("forum.backend.operation", "update_comment")
+        set_custom_attribute("forum.comment_id", comment_id)
+
+        # Track what's being updated
+        update_fields = [k for k in kwargs if kwargs.get(k) is not None]
+        if update_fields:
+            set_custom_attribute("forum.update_fields", ",".join(update_fields))
+        if "course_id" in kwargs:
+            set_custom_attribute("forum.course_id", kwargs["course_id"])
+
         try:
             comment = Comment.objects.get(id=comment_id)
         except Comment.DoesNotExist:
@@ -2244,6 +2266,9 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def delete_thread(thread_id: str) -> int:
         """Delete thread from thread_id."""
+        set_custom_attribute("forum.backend.operation", "delete_thread")
+        set_custom_attribute("forum.thread_id", thread_id)
+
         try:
             thread = CommentThread.objects.get(pk=thread_id)
         except ObjectDoesNotExist:
@@ -2254,6 +2279,12 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def soft_delete_thread(thread_id: str, deleted_by: Optional[str] = None) -> int:
         """Soft delete thread by marking it as deleted."""
+        set_custom_attribute("forum.backend.operation", "delete_thread")
+        set_custom_attribute("forum.thread_id", thread_id)
+        set_custom_attribute("forum.delete_mode", "soft")
+        if deleted_by:
+            set_custom_attribute("forum.deleted_by", deleted_by)
+
         try:
             thread = CommentThread.objects.get(pk=thread_id)
         except ObjectDoesNotExist:
@@ -2268,6 +2299,17 @@ class MySQLBackend(AbstractBackend):
     @staticmethod
     def create_thread(data: dict[str, Any]) -> str:
         """Create thread."""
+        # Track thread creation
+        set_custom_attribute("forum.backend.operation", "create_thread")
+        set_custom_attribute("forum.course_id", data["course_id"])
+        set_custom_attribute("forum.thread_type", data.get("thread_type", "discussion"))
+        set_custom_attribute(
+            "forum.commentable_id", data.get("commentable_id", "course")
+        )
+        set_custom_attribute("forum.author_id", data["author_id"])
+        if "group_id" in data:
+            set_custom_attribute("forum.group_id", str(data["group_id"]))
+
         optional_args = {}
         if group_id := data.get("group_id"):
             optional_args["group_id"] = group_id
@@ -2292,6 +2334,17 @@ class MySQLBackend(AbstractBackend):
         **kwargs: Any,
     ) -> int:
         """Updates a thread document in the database."""
+        # Track thread update
+        set_custom_attribute("forum.backend.operation", "update_thread")
+        set_custom_attribute("forum.thread_id", thread_id)
+
+        # Track what's being updated
+        update_fields = [k for k in kwargs if kwargs.get(k) is not None]
+        if update_fields:
+            set_custom_attribute("forum.update_fields", ",".join(update_fields))
+        if "course_id" in kwargs:
+            set_custom_attribute("forum.course_id", kwargs["course_id"])
+
         thread = CommentThread.objects.get(id=thread_id)
 
         if "thread_type" in kwargs:

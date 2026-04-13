@@ -13,3 +13,5 @@ pymongo
 elasticsearch
 edx-search # meilisearch backend
 mysqlclient
+ddtrace
+edx-django-utils

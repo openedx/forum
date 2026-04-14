@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Any, Optional
 
 from bson import ObjectId
-from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 
 from forum.backends.mongodb.contents import BaseContents
 from forum.backends.mongodb.threads import CommentThread
@@ -103,18 +102,6 @@ class Comment(BaseContents):
         Returns:
             str: The ID of the inserted document.
         """
-        # Track comment insertion
-        set_custom_attribute("forum.backend.operation", "insert_comment")
-        set_custom_attribute("forum.thread_id", comment_thread_id)
-        set_custom_attribute("forum.course_id", course_id)
-        set_custom_attribute("forum.author_id", author_id)
-        set_custom_attribute("forum.comment_depth", str(depth))
-        if parent_id:
-            set_custom_attribute("forum.parent_comment_id", parent_id)
-            set_custom_attribute("forum.is_child_comment", True)
-        else:
-            set_custom_attribute("forum.is_child_comment", False)
-
         date = datetime.now()
         comment_data = {
             "votes": self.get_votes_dict(up=[], down=[]),
@@ -288,13 +275,6 @@ class Comment(BaseContents):
         Returns:
             The number of comments deleted.
         """
-        # Track comment deletion
-        set_custom_attribute("forum.backend.operation", "delete_comment")
-        set_custom_attribute("forum.comment_id", _id)
-        set_custom_attribute("forum.delete_mode", mode)
-        if deleted_by:
-            set_custom_attribute("forum.deleted_by", deleted_by)
-
         comment = self.get(_id)
         if not comment:
             return 0, 0

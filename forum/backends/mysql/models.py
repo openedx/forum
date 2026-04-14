@@ -15,7 +15,7 @@ from django.db import models
 from django.db.models import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from model_utils.models import TimeStampedModel  # pylint: disable=import-error
+from model_utils.models import TimeStampedModel
 from opaque_keys.edx.django.models import CourseKeyField
 
 from forum.utils import validate_upvote_or_downvote

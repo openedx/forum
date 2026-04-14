@@ -948,6 +948,7 @@ class MongoBackend(AbstractBackend):
             "commentable_ids",
             "group_id",
             "group_ids",
+            "context",
         ]
         if not user_id:
             valid_params.append("user_id")
@@ -992,6 +993,7 @@ class MongoBackend(AbstractBackend):
             int(params.get("per_page", 100)),
             commentable_ids=params.get("commentable_ids", []),
             is_moderator=params.get("is_moderator", False),
+            context=params.get("context", "course"),
         )
         context: dict[str, Any] = {
             "count_flagged": count_flagged,

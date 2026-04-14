@@ -447,6 +447,43 @@ def test_unresponded_filter(api_client: APIClient, patched_get_backend: Any) -> 
     assert len(thread) == 1
 
 
+def test_get_user_threads_context(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """Test get_user_threads filters threads by context."""
+    backend = patched_get_backend
+    user_id, course_thread_id = setup_models(backend=backend)
+    standalone_thread_id = backend.create_thread(
+        {
+            "title": "Standalone Thread",
+            "body": "Standalone Thread",
+            "course_id": "course1",
+            "commentable_id": "CommentThread",
+            "author_id": user_id,
+            "author_username": "user1",
+            "abuse_flaggers": [],
+            "historical_abuse_flaggers": [],
+            "context": "standalone",
+        }
+    )
+
+    # Default (course) context: only the course thread is returned
+    response = api_client.get_json("/api/v2/threads", {"course_id": "course1"})
+    assert response.status_code == 200
+    ids = [t["id"] for t in response.json()["collection"]]
+    assert course_thread_id in ids
+    assert standalone_thread_id not in ids
+
+    # Explicit standalone context: only the standalone thread is returned
+    response = api_client.get_json(
+        "/api/v2/threads", {"course_id": "course1", "context": "standalone"}
+    )
+    assert response.status_code == 200
+    ids = [t["id"] for t in response.json()["collection"]]
+    assert standalone_thread_id in ids
+    assert course_thread_id not in ids
+
+
 def test_filter_by_post_type(api_client: APIClient, patched_get_backend: Any) -> None:
     """Test filter threads by thread_type through get thread API."""
     backend = patched_get_backend

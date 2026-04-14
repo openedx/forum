@@ -447,7 +447,9 @@ def test_unresponded_filter(api_client: APIClient, patched_get_backend: Any) -> 
     assert len(thread) == 1
 
 
-def test_get_user_threads_context(api_client: APIClient, patched_get_backend: Any) -> None:
+def test_get_user_threads_context(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
     """Test get_user_threads filters threads by context."""
     backend = patched_get_backend
     user_id, course_thread_id = setup_models(backend=backend)

@@ -1105,6 +1105,7 @@ class MySQLBackend(AbstractBackend):
             "commentable_ids",
             "group_id",
             "group_ids",
+            "context",
         ]
         if not user_id:
             valid_params.append("user_id")

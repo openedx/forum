@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Any, Optional
 
 from bson import ObjectId
-from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 
 from forum.backends.mongodb.contents import BaseContents
 from forum.backends.mongodb.users import Users
@@ -21,9 +20,6 @@ class CommentThread(BaseContents):
 
     def delete(self, _id: str) -> int:
         """Delete CommentThread"""
-        set_custom_attribute("forum.backend.operation", "delete_thread")
-        set_custom_attribute("forum.thread_id", _id)
-
         result = super().delete(_id)
         get_handler_by_name("comment_thread_deleted").send(
             sender=self.__class__, comment_thread_id=_id
@@ -145,15 +141,6 @@ class CommentThread(BaseContents):
             abuse_flaggers = []
         if historical_abuse_flaggers is None:
             historical_abuse_flaggers = []
-
-        # Track thread insertion
-        set_custom_attribute("forum.backend.operation", "insert_thread")
-        set_custom_attribute("forum.thread_type", thread_type)
-        set_custom_attribute("forum.course_id", course_id)
-        set_custom_attribute("forum.commentable_id", commentable_id)
-        set_custom_attribute("forum.author_id", author_id)
-        if group_id:
-            set_custom_attribute("forum.group_id", str(group_id))
 
         date = datetime.now()
         thread_data = {

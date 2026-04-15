@@ -9,9 +9,6 @@ def plugin_settings(settings: Any) -> None:
     """
     Common settings for forum app
     """
-    # Configure Datadog monitoring
-    settings.OPENEDX_TELEMETRY = ["edx_django_utils.monitoring.DatadogBackend"]
-
     # Search backend
     if getattr(settings, "MEILISEARCH_ENABLED", False):
         settings.FORUM_SEARCH_BACKEND = getattr(

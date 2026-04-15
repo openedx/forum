@@ -2,7 +2,6 @@
 """
 Package metadata for forum.
 """
-
 import os
 import re
 import sys

@@ -6,7 +6,7 @@ import logging
 import math
 from typing import Any, Optional
 
-from forum.backend import get_backend
+from forum.backend import get_backend, is_mysql_backend_enabled
 from forum.constants import FORUM_DEFAULT_PAGE, FORUM_DEFAULT_PER_PAGE
 from forum.serializers.thread import ThreadSerializer
 from forum.serializers.users import UserSerializer
@@ -135,14 +135,11 @@ def retire_user(
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(f"user not found with id: {user_id}")
-    backend.update_user(
-        user_id,
-        data={
-            "email": "",
-            "username": retired_username,
-            "read_states": [],
-        },
-    )
+    data: dict[str, Any] = {"read_states": []}
+    if not is_mysql_backend_enabled(course_id):
+        data["username"] = retired_username
+        data["email"] = ""
+    backend.update_user(user_id, data=data)
     backend.unsubscribe_all(user_id)
     backend.retire_all_content(user_id, retired_username)
 

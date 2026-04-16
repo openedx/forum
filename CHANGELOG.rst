@@ -32,6 +32,14 @@ Breaking Changes
   for details. If you are running an older Typesense server you must
   upgrade it before deploying this version of openedx-forum.
 
+0.4.1 - 2025-10-21
+******************
+
+Fixed
+-----
+
+* Do not modify LMS users during retirement — this is handled by the LMS retirement pipeline.
+
 0.3.4 – 2025-08-13
 ******************
 

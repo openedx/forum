@@ -6,7 +6,9 @@ from forum.backends.mongodb.api import MongoBackend
 from forum.backends.mysql.api import MySQLBackend
 
 try:
-    from edx_django_utils.monitoring import set_custom_attribute
+    from edx_django_utils.monitoring import (  # type: ignore[import-untyped]
+        set_custom_attribute,
+    )
 except ImportError:  # pragma: no cover
     set_custom_attribute = None
 

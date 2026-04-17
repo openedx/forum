@@ -35,7 +35,12 @@ def is_mysql_backend_enabled(course_id: str | None) -> bool:
     return ENABLE_MYSQL_BACKEND.is_enabled(course_key)
 
 
-def _get_backend() -> MongoBackend | MySQLBackend:
+def get_backend(
+    course_id: Optional[str] = None,
+) -> Callable[[], MongoBackend | MySQLBackend]:
+    """Return a factory function that lazily loads the backend API based on course_id."""
+
+    def _get_backend() -> MongoBackend | MySQLBackend:
         backend_enabled = is_mysql_backend_enabled(course_id)
         if set_custom_attribute:
             set_custom_attribute(

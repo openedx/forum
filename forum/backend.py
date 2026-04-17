@@ -10,6 +10,7 @@ try:
 except ImportError:  # pragma: no cover
     set_custom_attribute = None
 
+
 def is_mysql_backend_enabled(course_id: str | None) -> bool:
     """
     Return True if mysql backend is enabled for the course.

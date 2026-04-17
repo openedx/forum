@@ -5,6 +5,10 @@ from typing import Callable, Optional
 from forum.backends.mongodb.api import MongoBackend
 from forum.backends.mysql.api import MySQLBackend
 
+try:
+    from edx_django_utils.monitoring import set_custom_attribute
+except ImportError:  # pragma: no cover
+    set_custom_attribute = None
 
 def is_mysql_backend_enabled(course_id: str | None) -> bool:
     """
@@ -31,13 +35,13 @@ def is_mysql_backend_enabled(course_id: str | None) -> bool:
     return ENABLE_MYSQL_BACKEND.is_enabled(course_key)
 
 
-def get_backend(
-    course_id: Optional[str] = None,
-) -> Callable[[], MongoBackend | MySQLBackend]:
-    """Return a factory function that lazily loads the backend API based on course_id."""
-
-    def _get_backend() -> MongoBackend | MySQLBackend:
-        if is_mysql_backend_enabled(course_id):
+def _get_backend() -> MongoBackend | MySQLBackend:
+        backend_enabled = is_mysql_backend_enabled(course_id)
+        if set_custom_attribute:
+            set_custom_attribute(
+                "forum.backend", "mysql" if backend_enabled else "mongodb"
+            )
+        if backend_enabled:
             return MySQLBackend()
         return MongoBackend()
 

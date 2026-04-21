@@ -45,7 +45,7 @@ def mock_elasticsearch_index_backend() -> Generator[Any, Any, Any]:
 
 
 @pytest.fixture
-def patched_get_backend() -> MySQLBackend:
+def patched_get_backend() -> type[MySQLBackend]:
     """Return MySQLBackend for tests."""
     return MySQLBackend
 

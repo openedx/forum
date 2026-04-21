@@ -3,8 +3,6 @@
 from forum.backends.mysql.api import MySQLBackend
 
 
-def get_backend(
-    course_id: str | None = None,
-) -> "type[MySQLBackend]":
+def get_backend(course_id: str | None = None) -> "type[MySQLBackend]":  # pylint: disable=unused-argument
     """Return the MySQL backend."""
     return MySQLBackend

@@ -10,6 +10,7 @@ from rest_framework.serializers import ValidationError
 
 from forum.api.users import mark_thread_as_read
 from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend
 from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError, get_int_value_from_collection, str_to_bool
 
@@ -403,6 +404,4 @@ def get_course_id_by_thread(thread_id: str) -> str | None:
     """
     Return course_id for the matching thread.
     """
-    from forum.backends.mysql.api import MySQLBackend
-
     return MySQLBackend.get_course_id_by_thread_id(thread_id) or None

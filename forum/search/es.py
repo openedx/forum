@@ -46,8 +46,12 @@ class ElasticsearchModelMixin:
     """
 
     @property
+    def models(self) -> tuple[type[Content], ...]:
+        return mysql_model_indices
+
+    @property
     def mysql_models(self) -> tuple[type[Content], ...]:
-        return MODEL_INDICES
+        return mysql_model_indices
 
     @property
     def index_names(self) -> list[str]:
@@ -60,7 +64,7 @@ class ElasticsearchModelMixin:
         return [model.index_name for model in self.models]
 
     def get_mysql_model_from_index_name(self, index_name: str) -> type[Content]:
-        for model in self.models:
+        for model in self.mysql_models:
             if index_name.startswith(model.index_name):
                 return model
         raise Exception("Invalid model name")
@@ -212,7 +216,7 @@ class ElasticsearchIndexBackend(
 
         # Update aliases to point to new indices
         for index_name in index_names:
-            model = self.get_index_model_rel(index_name)
+            model = self.get_mysql_model_from_index_name(index_name)
             self.move_alias(model.index_name, index_name, force_delete=True)
 
         self.delete_unused_indices()

@@ -10,6 +10,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
 from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend
 from forum.serializers.comment import CommentSerializer
 from forum.utils import ForumV2RequestError
 
@@ -308,8 +309,6 @@ def get_course_id_by_comment(comment_id: str) -> str | None:
     """
     Return course_id for the matching comment.
     """
-    from forum.backends.mysql.api import MySQLBackend
-
     return MySQLBackend.get_course_id_by_comment_id(comment_id) or None
 
 

@@ -1019,5 +1019,3 @@ def test_pagination_in_thread_comments(
     assert len(thread["non_endorsed_responses"]) == comments_count - resp_limit
     assert thread["resp_skip"] == resp_limit
     assert thread["resp_limit"] == resp_limit
-
-

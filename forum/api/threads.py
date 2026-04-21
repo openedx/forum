@@ -402,14 +402,7 @@ def get_user_threads(
 def get_course_id_by_thread(thread_id: str) -> str | None:
     """
     Return course_id for the matching thread.
-    It searches for thread_id both in mongodb and mysql.
     """
-    #  pylint: disable=C0415
-    from forum.backends.mongodb.api import MongoBackend
     from forum.backends.mysql.api import MySQLBackend
 
-    return (
-        MongoBackend.get_course_id_by_thread_id(thread_id)
-        or MySQLBackend.get_course_id_by_thread_id(thread_id)
-        or None
-    )
+    return MySQLBackend.get_course_id_by_thread_id(thread_id) or None

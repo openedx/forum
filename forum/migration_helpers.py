@@ -480,18 +480,3 @@ def log_deletion(
     stdout.write(f"Deleted {result.deleted_count} documents from {collection_name}")
 
 
-# pylint: disable=import-error,import-outside-toplevel
-def enable_mysql_backend_for_course(course_id: str) -> None:
-    """Enable MySQL backend waffle flag for a course."""
-    from opaque_keys.edx.keys import CourseKey
-
-    from openedx.core.djangoapps.waffle_utils.models import (  # type: ignore[import-not-found]
-        WaffleFlagCourseOverrideModel,
-    )
-
-    from forum.toggles import ENABLE_MYSQL_BACKEND
-
-    course_key = CourseKey.from_string(course_id)
-    WaffleFlagCourseOverrideModel.objects.create(
-        course_id=course_key, waffle_flag=ENABLE_MYSQL_BACKEND.name, enabled=True
-    )

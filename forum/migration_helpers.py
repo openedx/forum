@@ -478,5 +478,3 @@ def log_deletion(
 ) -> None:
     """Log the deletion of a collection."""
     stdout.write(f"Deleted {result.deleted_count} documents from {collection_name}")
-
-

@@ -2441,12 +2441,14 @@ class MySQLBackend(AbstractBackend):
 
         if "username" in data:
             user.username = data["username"]
-        if "email" in data:
-            user.email = data["email"]
+        # MySQL backend does not update auth_user.email (LMS manages it)
         if "default_sort_key" in data:
             forum_user.default_sort_key = data["default_sort_key"]
         if "read_states" in data and data["read_states"] == []:
             user_read_states = ReadState.objects.filter(user=user)
+            # Delete LastReadTime records first to avoid FK constraint violations
+            LastReadTime.objects.filter(read_state__in=user_read_states).delete()
+            # Then delete ReadState records
             user_read_states.delete()
 
         user.save()

@@ -370,3 +370,21 @@ def update_users_in_course(course_id: str) -> dict[str, int]:
     backend = get_backend(course_id)()
     updated_users = backend.update_all_users_in_course(course_id)
     return {"user_count": len(updated_users)}
+
+
+def get_user_post_counts(user_id: str, course_id: str) -> dict[str, int]:
+    """Get count of threads and comments authored by user in course."""
+    backend = get_backend(course_id)()
+    user = backend.get_user(user_id)
+    if not user:
+        raise ForumV2RequestError(f"user not found with id: {user_id}")
+    return backend.get_user_post_counts(user_id, course_id)
+
+
+def delete_user_posts(user_id: str, course_id: str) -> dict[str, int]:
+    """Delete all threads and comments authored by user in course. Returns counts before deletion."""
+    backend = get_backend(course_id)()
+    user = backend.get_user(user_id)
+    if not user:
+        raise ForumV2RequestError(f"user not found with id: {user_id}")
+    return backend.delete_user_posts(user_id, course_id)

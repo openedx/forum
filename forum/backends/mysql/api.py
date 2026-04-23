@@ -1359,7 +1359,7 @@ class MySQLBackend(AbstractBackend):
         try:
             user = User.objects.get(id=user_id)
             user.username = username
-            user.save()
+            user.save(update_fields=["username"])
         except User.DoesNotExist as exc:
             raise ValueError("User does not exist") from exc
 
@@ -2439,8 +2439,10 @@ class MySQLBackend(AbstractBackend):
         except ObjectDoesNotExist:
             return 0
 
+        user_fields_to_update = []
         if "username" in data:
             user.username = data["username"]
+            user_fields_to_update.append("username")
         # MySQL backend does not update auth_user.email (LMS manages it)
         if "default_sort_key" in data:
             forum_user.default_sort_key = data["default_sort_key"]
@@ -2451,7 +2453,8 @@ class MySQLBackend(AbstractBackend):
             # Then delete ReadState records
             user_read_states.delete()
 
-        user.save()
+        if user_fields_to_update:
+            user.save(update_fields=user_fields_to_update)
         forum_user.save()
         return 1
 
@@ -2461,7 +2464,7 @@ class MySQLBackend(AbstractBackend):
         try:
             user = User.objects.get(pk=user_id)
             user.username = username
-            user.save()
+            user.save(update_fields=["username"])
 
             # Update author_username in all content
             Comment.objects.filter(author=user).update(author_username=username)

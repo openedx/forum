@@ -9,6 +9,7 @@ from datetime import datetime
 
 from django.http import HttpRequest
 from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend
 from forum.constants import FORUM_DEFAULT_PAGE, FORUM_DEFAULT_PER_PAGE
 from forum.serializers.thread import ThreadSerializer
 from forum.serializers.users import UserSerializer
@@ -137,14 +138,19 @@ def retire_user(
     user = backend.get_user(user_id)
     if not user:
         raise ForumV2RequestError(f"user not found with id: {user_id}")
-    backend.update_user(
-        user_id,
-        data={
-            "email": "",
-            "username": retired_username,
-            "read_states": [],
-        },
-    )
+
+    # Prepare update data
+    data = {
+        "username": retired_username,
+        "read_states": [],
+    }
+
+    # MongoDB backend owns user data and should blank email during retirement
+    # MySQL backend shares auth_user with LMS - LMS manages email field
+    if not isinstance(backend, MySQLBackend):
+        data["email"] = ""
+
+    backend.update_user(user_id, data=data)
     backend.unsubscribe_all(user_id)
     backend.retire_all_content(user_id, retired_username)
 

@@ -16,6 +16,7 @@ from forum.views.subscriptions import (
 )
 from forum.views.threads import CreateThreadAPIView, ThreadsAPIView, UserThreadsAPIView
 from forum.views.users import (
+    BulkDeleteUserPostsAPIView,
     UserActiveThreadsAPIView,
     UserAPIView,
     UserCourseStatsAPIView,
@@ -150,6 +151,11 @@ api_patterns = [
         "users/<str:user_id>/retire",
         UserRetireAPIView.as_view(),
         name="user-retire",
+    ),
+    path(
+        "users/<str:user_id>/posts",
+        BulkDeleteUserPostsAPIView.as_view(),
+        name="user-posts",
     ),
     # Proxy view for various API endpoints
     # Uncomment to redirect remaining API calls to the V1 API.

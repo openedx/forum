@@ -507,3 +507,112 @@ def test_retire_user_with_subscribed_threads(
             assert content["title"] == RETIRED_TITLE
         assert content["body"] == RETIRED_BODY
         assert content["author_username"] == retired_username
+
+
+def test_get_user_post_counts(api_client: APIClient, patched_get_backend: Any) -> None:
+    """Test getting thread and comment counts for a user in a course."""
+    backend = patched_get_backend
+    user_id = backend.generate_id()
+    username = "test-user"
+    backend.find_or_create_user(user_id, username)
+    course_id = "course1"
+    # Create 3 threads and 1 comment per thread (3 comments total).
+    for i in range(3):
+        thread_id = backend.create_thread(
+            {
+                "title": f"Thread {i}",
+                "body": "body",
+                "course_id": course_id,
+                "commentable_id": "commentable1",
+                "author_id": user_id,
+                "author_username": username,
+            }
+        )
+        backend.create_comment(
+            {
+                "body": "comment body",
+                "course_id": course_id,
+                "author_id": user_id,
+                "comment_thread_id": str(thread_id),
+                "author_username": username,
+            }
+        )
+    response = api_client.get(f"/api/v2/users/{user_id}/posts?course_id={course_id}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["thread_count"] == 3
+    assert data["comment_count"] == 3
+
+
+def test_get_user_post_counts_missing_course_id(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """Test that GET /users/<user_id>/posts returns 400 when course_id is missing."""
+    backend = patched_get_backend
+    user_id = backend.generate_id()
+    backend.find_or_create_user(user_id, "test-user")
+    response = api_client.get(f"/api/v2/users/{user_id}/posts")
+    assert response.status_code == 400
+
+
+def test_get_user_post_counts_invalid_user(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """Test that GET /users/<user_id>/posts returns 404 for unknown user."""
+    backend = patched_get_backend
+    assert backend.get_user("999999") is None
+    response = api_client.get("/api/v2/users/999999/posts?course_id=course1")
+    assert response.status_code == 404
+
+
+def test_delete_user_posts(api_client: APIClient, patched_get_backend: Any) -> None:
+    """Test deleting all threads and comments by a user in a course."""
+    backend = patched_get_backend
+    user_id = backend.generate_id()
+    username = "test-user"
+    backend.find_or_create_user(user_id, username)
+    course_id = "course1"
+    thread_ids = []
+    for i in range(2):
+        thread_id = backend.create_thread(
+            {
+                "title": f"Thread {i}",
+                "body": "body",
+                "course_id": course_id,
+                "commentable_id": "commentable1",
+                "author_id": user_id,
+                "author_username": username,
+            }
+        )
+        backend.create_comment(
+            {
+                "body": "comment body",
+                "course_id": course_id,
+                "author_id": user_id,
+                "comment_thread_id": str(thread_id),
+                "author_username": username,
+            }
+        )
+        thread_ids.append(thread_id)
+    response = api_client.delete_json(
+        f"/api/v2/users/{user_id}/posts?course_id={course_id}"
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["thread_count"] == 2
+    assert data["comment_count"] == 2
+    # Verify content is gone.
+    counts = api_client.get(f"/api/v2/users/{user_id}/posts?course_id={course_id}")
+    assert counts.json()["thread_count"] == 0
+    assert counts.json()["comment_count"] == 0
+
+
+def test_delete_user_posts_missing_course_id(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """Test that DELETE /users/<user_id>/posts returns 400 when course_id is missing."""
+    backend = patched_get_backend
+    user_id = backend.generate_id()
+    backend.find_or_create_user(user_id, "test-user")
+    response = api_client.delete_json(f"/api/v2/users/{user_id}/posts")
+    assert response.status_code == 400

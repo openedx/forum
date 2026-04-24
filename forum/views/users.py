@@ -13,8 +13,10 @@ from rest_framework.views import APIView
 from forum.api import get_user
 from forum.api.users import (
     create_user,
+    delete_user_posts,
     get_user_active_threads,
     get_user_course_stats,
+    get_user_post_counts,
     mark_thread_as_read,
     retire_user,
     update_user,
@@ -199,6 +201,38 @@ class UserActiveThreadsAPIView(APIView):
         except ForumV2RequestError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serialized_data)
+
+
+class BulkDeleteUserPostsAPIView(APIView):
+    """Bulk count/delete user posts in a course."""
+
+    permission_classes = (AllowAny,)
+
+    def get(self, request: Request, user_id: str) -> Response:
+        """Return thread_count and comment_count for user in course."""
+        course_id = request.query_params.get("course_id")
+        if not course_id:
+            return Response(
+                {"error": "course_id is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            data = get_user_post_counts(user_id, course_id)
+        except ForumV2RequestError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        return Response(data, status=status.HTTP_200_OK)
+
+    def delete(self, request: Request, user_id: str) -> Response:
+        """Delete all posts by user in course. Returns counts before deletion."""
+        course_id = request.query_params.get("course_id")
+        if not course_id:
+            return Response(
+                {"error": "course_id is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            data = delete_user_posts(user_id, course_id)
+        except ForumV2RequestError as e:
+            return Response({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class UserCourseStatsAPIView(APIView):

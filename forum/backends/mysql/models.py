@@ -293,7 +293,7 @@ class CommentThread(Content):
     )
     commentable_id: models.CharField[str, str] = models.CharField(
         max_length=255,
-        default=None,
+        default="course",
         blank=True,
         null=True,
     )

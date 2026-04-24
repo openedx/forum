@@ -476,3 +476,13 @@ class AbstractBackend:
         Retrieve all threads and comments authored by a specific user.
         """
         raise NotImplementedError
+
+    @staticmethod
+    def get_user_post_counts(user_id: str, course_id: str) -> dict[str, int]:
+        """Return thread_count and comment_count for user in course."""
+        raise NotImplementedError
+
+    @staticmethod
+    def delete_user_posts(user_id: str, course_id: str) -> dict[str, int]:
+        """Delete all threads and comments by user in course. Returns counts before deletion."""
+        raise NotImplementedError

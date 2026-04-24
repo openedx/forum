@@ -2308,3 +2308,27 @@ class MySQLBackend(AbstractBackend):
             for thread in CommentThread.objects.filter(author__username=username)
         ]
         return contents
+
+    @staticmethod
+    def get_user_post_counts(user_id: str, course_id: str) -> dict[str, int]:
+        """Return thread_count and comment_count for user in course."""
+        thread_count = CommentThread.objects.filter(
+            author_id=user_id, course_id=course_id
+        ).count()
+        comment_count = Comment.objects.filter(
+            author_id=user_id, course_id=course_id
+        ).count()
+        return {"thread_count": thread_count, "comment_count": comment_count}
+
+    @staticmethod
+    def delete_user_posts(user_id: str, course_id: str) -> dict[str, int]:
+        """Delete all threads and comments by user in course. Returns counts before deletion."""
+        thread_count = CommentThread.objects.filter(
+            author_id=user_id, course_id=course_id
+        ).count()
+        comment_count = Comment.objects.filter(
+            author_id=user_id, course_id=course_id
+        ).count()
+        Comment.objects.filter(author_id=user_id, course_id=course_id).delete()
+        CommentThread.objects.filter(author_id=user_id, course_id=course_id).delete()
+        return {"thread_count": thread_count, "comment_count": comment_count}

@@ -34,9 +34,11 @@ from .threads import (
 )
 from .users import (
     create_user,
+    delete_user_posts,
     get_user,
     get_user_active_threads,
     get_user_course_stats,
+    get_user_post_counts,
     mark_thread_as_read,
     retire_user,
     update_user,
@@ -61,6 +63,7 @@ __all__ = [
     "delete_subscription",
     "delete_thread",
     "delete_thread_vote",
+    "delete_user_posts",
     "get_commentables_stats",
     "get_course_id_by_comment",
     "get_course_id_by_thread",
@@ -71,6 +74,7 @@ __all__ = [
     "get_user_active_threads",
     "get_user_comments",
     "get_user_course_stats",
+    "get_user_post_counts",
     "get_user_subscriptions",
     "get_user_threads",
     "mark_thread_as_read",

@@ -27,15 +27,6 @@ from forum.utils import get_trunc_title
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture(autouse=True)
-def patch_enable_mysql_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch enable_mysql_backend_for_course to just return."""
-    monkeypatch.setattr(
-        "forum.migration_helpers.enable_mysql_backend_for_course",
-        lambda course_id: None,
-    )
-
-
 def test_migrate_users(patched_mongodb: Database[Any]) -> None:
     patched_mongodb.users.insert_one(
         {

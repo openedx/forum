@@ -3,7 +3,7 @@ API functions for managing discussion bans.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
@@ -19,11 +19,13 @@ from forum.backends.mysql.models import (
 )
 
 try:
-    from edx_django_utils.monitoring import set_custom_attribute
+    from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
-    def set_custom_attribute(*args, **kwargs):
+    def set_custom_attribute(*args: Any, **kwargs: Any) -> None:
         """No-op fallback when monitoring utils are unavailable."""
         return None
+else:
+    set_custom_attribute: Callable[[str, Any], None]
 
 User = get_user_model()
 log = logging.getLogger(__name__)

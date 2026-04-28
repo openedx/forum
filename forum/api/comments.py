@@ -19,6 +19,7 @@ try:
         set_custom_attribute as _set_custom_attribute,
     )
 except ImportError:  # pragma: no cover
+
     def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
         """No-op fallback when monitoring utils are unavailable."""
         return None

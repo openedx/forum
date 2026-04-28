@@ -46,6 +46,7 @@ def ban_user(
     scope: str = "course",
     reason: str = "",
 ) -> dict[str, Any]:
+    # pylint: disable=too-many-statements
     """
     Ban a user from discussions.
 

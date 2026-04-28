@@ -19,7 +19,9 @@ from forum.backends.mysql.models import (
 )
 
 try:
-    from edx_django_utils.monitoring import set_custom_attribute as _set_custom_attribute  # type: ignore[import-untyped]
+    from edx_django_utils.monitoring import (  # type: ignore[import-untyped]
+        set_custom_attribute as _set_custom_attribute,
+    )
 except ImportError:  # pragma: no cover
     def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
         """No-op fallback when monitoring utils are unavailable."""
@@ -29,6 +31,7 @@ except ImportError:  # pragma: no cover
 def set_custom_attribute(key: str, value: Any) -> None:
     """Set a Datadog custom attribute when monitoring is available."""
     _set_custom_attribute(key, value)
+
 
 User = get_user_model()
 log = logging.getLogger(__name__)

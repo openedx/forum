@@ -383,6 +383,8 @@ def get_banned_users(
     Returns:
         list: List of ban records (excludes org-level bans with exceptions for the course)
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     queryset = DiscussionBan.objects.select_related("user", "banned_by", "unbanned_by")
 
     if not include_inactive:

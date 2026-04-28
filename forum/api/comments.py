@@ -10,6 +10,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
 
 from forum.backend import get_backend
+from forum.backends.mysql.api import MySQLBackend
 from forum.serializers.comment import CommentSerializer
 from forum.utils import ForumV2RequestError
 
@@ -307,17 +308,8 @@ def create_parent_comment(
 def get_course_id_by_comment(comment_id: str) -> str | None:
     """
     Return course_id for the matching comment.
-    It searches for comment_id both in mongodb and mysql.
     """
-    #  pylint: disable=C0415
-    from forum.backends.mongodb.api import MongoBackend
-    from forum.backends.mysql.api import MySQLBackend
-
-    return (
-        MongoBackend.get_course_id_by_comment_id(comment_id)
-        or MySQLBackend.get_course_id_by_comment_id(comment_id)
-        or None
-    )
+    return MySQLBackend.get_course_id_by_comment_id(comment_id) or None
 
 
 def get_user_comments(

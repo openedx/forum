@@ -56,7 +56,7 @@ Re-build the openedx-dev image and launch the platform::
 Administration
 **************
 
-Deployment of the forum v2 application is gated by two course waffle flags. In addition, this application provides a few commands to facilitate the transition from the legacy forum app.
+This application provides a few commands to facilitate the transition from the legacy forum app.
 
 Forum v2 toggle
 ---------------
@@ -67,34 +67,10 @@ In edx-platform, forum v2 is not enabled by default and edx-platform will keep c
 
 Note that Tutor enables this flag for all forum plugin users, such that you don't have to run this command yourself. If you wish to migrate your courses one by one to the new forum v2 app, you may create the corresponding "Waffle flag course override" objects in your LMS administration panel, at: ``http(s)://<LMS_HOST>/admin/waffle_utils/waffleflagcourseoverridemodel/``.
 
-⚠️⚠️⚠️ Even if the forum v2 toggle is not enabled, edx-platform will make a call to the forum v2 API in some edge cases. That's because edx-platform needs to determine whether it should use forum v2 or cs_comments_service, based on the value of some course waffle flag. In order to access the course wafffle flag, we need to determine the course ID of the current HTTP request. In some requests, the course ID is not available: only the thread ID or the comment ID is. Thus, edx-platform needs to fetch the course ID that is associated to the thread or comment. That information is stored either in MySQL or in MongoDB. Thus, edx-platform needs to call the forum v2 API.
-
-As a consequence, **the forum v2 app needs to have accurate MongoDB configuration settings even if you don't use forum v2**. In a Tutor installation, these settings are set to the right values. In other environments, the following Django settings must be set::
-
-    # Name of the MongoDB database in which forum data is stored
-    FORUM_MONGODB_DATABASE = "cs_comments_service"
-
-    # This setting will be passed to the MongoDB client constructor as follows:
-    # pymongo.MongoClient(**FORUM_MONGODB_CLIENT_PARAMETERS)
-    # Documentation: https://pymongo.readthedocs.io/en/4.4.0/api/pymongo/mongo_client.html#pymongo.mongo_client.MongoClient
-    FORUM_MONGODB_CLIENT_PARAMETERS = {"host": "mongodb"}
-
-MySQL backend toggle
---------------------
-
-To preserve the legacy behaviour of storing data in MongoDB, the forum v2 app makes it possible to keep using MongoDB as a data backend. However, it is strongly recommended to switch to the MySQL storage backend by toggling the ``forum_v2.enable_mysql_backend`` course waffle flag::
-
-    ./manage.py lms waffle_flag --create --everyone forum_v2.enable_mysql_backend
-
-Here again, Tutor creates this flag by default, such that you don't have to create it yourself. If you decide to switch to MySQL, you will have to migrate your data from MongoDB -- see instructions below.
-
 Migration from MongoDB to MySQL
 -------------------------------
 
-The forum v2 app comes with the ``forum_migrate_courses_to_mysql`` migration command to move data from MongoDB to MySQL. This command will perform the following steps:
-
-1. Migrate data: user, content and read state data from MongoDB to MySQL.
-2. Enable the ``forum_v2.enable_mysql_backend`` waffle flag for the specified course(s).
+The forum v2 app comes with the ``forum_migrate_course_from_mongodb_to_mysql`` migration command to move data from MongoDB to MySQL. This command migrates user, content, and read state data from MongoDB to MySQL.
 
 To migrate data for specific courses, run the command with the course IDs as argument::
 
@@ -104,16 +80,10 @@ To migrate data for all courses, run the command with the ``all`` argument::
 
    ./manage.py lms forum_migrate_course_from_mongodb_to_mysql all
 
-To test data migration without actually creating course toggles, use the ``--no-toggle`` option::
-
-    ./manage.py lms forum_migrate_course_from_mongodb_to_mysql --no-toggle all
-
-⚠️ Note that the command will create toggles only for the processed courses. Courses created in the future will not automatically use the MySQL backend unless you create the global waffle flag with the ``waffle_flag --create`` command indicated above.
-
 MongoDB data deletion
 ---------------------
 
-After you have successfully migrated your course data from MySQL to MongoDB using the command above, you may delete your MongoDB data using the ``forum_delete_course_from_mongodb`` management command. This command deletes course data from MongoDB for the specified courses.
+After you have successfully migrated your course data from MongoDB to MySQL using the command above, you may delete your MongoDB data using the ``forum_delete_course_from_mongodb`` management command. This command deletes course data from MongoDB for the specified courses.
 
 Run the command with the course ID(s) as an argument::
 
@@ -126,15 +96,6 @@ To delete data for all courses, run the command with the ``all`` argument::
 To try out changes before applying them, use the ``--dry-run`` option. For instance::
 
    ./manage.py lms forum_delete_course_from_mongodb all --dry-run
-
-MongoDB Indexes
----------------
-
-To optimize MongoDB query performance, it is crucial to create database indexes. The command will create or update indexes and skip them if they already exist.
-
-To create or update MongoDB indexes, execute the following command::
-
-    ./manage.py lms forum_create_mongodb_indexes
 
 Search Indicies
 ---------------

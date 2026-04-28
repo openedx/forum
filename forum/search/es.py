@@ -10,10 +10,8 @@ from typing import Any, Iterator, Optional
 from django.conf import settings
 from elasticsearch import Elasticsearch, exceptions, helpers
 
-from forum.backends.mongodb import MODEL_INDICES as mongo_model_indices
-from forum.backends.mongodb import BaseContents
-from forum.backends.mongodb.threads import CommentThread
 from forum.backends.mysql import MODEL_INDICES as mysql_model_indices
+from forum.backends.mysql.models import CommentThread
 from forum.constants import FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT
 from forum.models import Content
 from forum.search import base
@@ -48,8 +46,8 @@ class ElasticsearchModelMixin:
     """
 
     @property
-    def models(self) -> tuple[type[BaseContents], ...]:
-        return mongo_model_indices
+    def models(self) -> tuple[type[Content], ...]:
+        return mysql_model_indices
 
     @property
     def mysql_models(self) -> tuple[type[Content], ...]:
@@ -204,15 +202,6 @@ class ElasticsearchIndexBackend(
         index_names = self.create_indices()
         for index_name in index_names:
             current_batch = 1
-            mongo_model = self.get_index_model_rel(index_name)
-            for response in self._import_to_es_from_mongo(
-                mongo_model, index_name, batch_size
-            ):
-                self.batch_import_post_process(response, current_batch)
-                current_batch += 1
-
-        for index_name in index_names:
-            current_batch = 1
             mysql_model = self.get_mysql_model_from_index_name(index_name)
             for response in self._import_to_es_from_mysql(
                 mysql_model, index_name, batch_size
@@ -227,27 +216,12 @@ class ElasticsearchIndexBackend(
 
         # Update aliases to point to new indices
         for index_name in index_names:
-            model = self.get_index_model_rel(index_name)
+            model = self.get_mysql_model_from_index_name(index_name)
             self.move_alias(model.index_name, index_name, force_delete=True)
 
         self.delete_unused_indices()
 
         log.info("Rebuild indices complete.")
-
-    def get_index_model_rel(self, index_name: str) -> BaseContents:
-        """
-        Retrieve the model corresponding to the given index name.
-
-        Args:
-            index_name (str): Name of the index.
-
-        Returns:
-            model: The model associated with the index name.
-        """
-        for model in self.models:
-            if index_name.startswith(model.index_name):
-                return model()
-        raise ValueError("Invalid index name")
 
     def catchup_indices(
         self, index_names: list[str], start_time: datetime, batch_size: int = 100
@@ -260,16 +234,6 @@ class ElasticsearchIndexBackend(
             start_time (datetime): The starting time for catching up.
             batch_size (int): Number of documents to process in each batch.
         """
-        for index_name in index_names:
-            current_batch = 1
-            mongo_model = self.get_index_model_rel(index_name)
-            mongo_query: dict[str, Any] = {"updated_at": {"$gte": start_time}}
-            for response in self._import_to_es_from_mongo(
-                mongo_model, index_name, batch_size, mongo_query
-            ):
-                self.batch_import_post_process(response, current_batch)
-                current_batch += 1
-
         for index_name in index_names:
             current_batch = 1
             mysql_model = self.get_mysql_model_from_index_name(index_name)
@@ -443,7 +407,7 @@ class ElasticsearchIndexBackend(
         if force_new_index or not self.exists_aliases(self.index_names):
             index_names = self.create_indices()
             for index_name in index_names:
-                model = self.get_index_model_rel(index_name)
+                model = self.get_mysql_model_from_index_name(index_name)
                 self.move_alias(model.index_name, index_name, force_delete=True)
         else:
             log.info("Skipping initialization. Indices already exist.")
@@ -461,7 +425,7 @@ class ElasticsearchIndexBackend(
             raise ValueError("Indices do not exist!")
 
         for index_name in actual_mappings:
-            model = self.get_index_model_rel(index_name)
+            model = self.get_mysql_model_from_index_name(index_name)
             expected_mapping = self.MAPPINGS[model.index_name]
             actual_mapping = actual_mappings[index_name]["mappings"]
 
@@ -505,40 +469,6 @@ class ElasticsearchIndexBackend(
             bool: True if all aliases exist, False otherwise.
         """
         return all(self.exists_alias(name) for name in names)
-
-    def _import_to_es_from_mongo(
-        self,
-        model: BaseContents,
-        index_name: str,
-        batch_size: int = 500,
-        query: dict[str, Any] | None = None,
-    ) -> Iterator[tuple[int, Any]]:
-        """
-        Import documents from the database into Elasticsearch.
-
-        Args:
-            model (BaseContents): The model representing the documents.
-            index_name (str): The name of the index to import into.
-            batch_size (int): Number of documents to import in each batch.
-            query (dict[str, Any], optional): Query to filter documents for import.
-
-        Yields:
-            Iterator[tuple[int, Any]]: Number of successful imports and any errors.
-        """
-        cursor = model.find(query or {}).batch_size(batch_size)
-        actions = []
-        for doc in cursor:
-            action = {
-                "_index": index_name,
-                "_id": str(doc.get("_id")),
-                "_source": model.doc_to_hash(doc),
-            }
-            actions.append(action)
-            if len(actions) >= batch_size:
-                yield helpers.bulk(self.client, actions)
-                actions = []
-        if actions:
-            yield helpers.bulk(self.client, actions)
 
     def _import_to_es_from_mysql(
         self,

@@ -3,7 +3,7 @@ Native Python Threads APIs.
 """
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.serializers import ValidationError
@@ -15,13 +15,16 @@ from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError, get_int_value_from_collection, str_to_bool
 
 try:
-    from edx_django_utils.monitoring import set_custom_attribute  # type: ignore[import-untyped]
+    from edx_django_utils.monitoring import set_custom_attribute as _set_custom_attribute  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
-    def set_custom_attribute(*args: Any, **kwargs: Any) -> None:
+    def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
         """No-op fallback when monitoring utils are unavailable."""
         return None
-else:
-    set_custom_attribute: Callable[[str, Any], None]
+
+
+def set_custom_attribute(key: str, value: Any) -> None:
+    """Set a Datadog custom attribute when monitoring is available."""
+    _set_custom_attribute(key, value)
 
 log = logging.getLogger(__name__)
 

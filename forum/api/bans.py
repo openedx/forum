@@ -74,6 +74,10 @@ def ban_user(
     if scope == "organization" and not (org_key or course_id):
         raise ValueError("org_key or course_id is required for organization-level bans")
 
+    # Use provided User objects
+    banned_user = user
+    moderator = banned_by
+
     with transaction.atomic():
         # Determine lookup kwargs based on scope
         course_key = None  # Initialize for audit log
@@ -92,7 +96,7 @@ def ban_user(
                 )
 
             lookup_kwargs = {
-                "user": user,
+                "user": banned_user,
                 "org_key": org_key,
                 "scope": "organization",
             }
@@ -108,7 +112,7 @@ def ban_user(
             # Extract org from course_id for denormalization
             course_org = str(course_key.org) if hasattr(course_key, "org") else org_key  # type: ignore[union-attr]
             lookup_kwargs = {
-                "user": user,
+                "user": banned_user,
                 "course_id": course_key,
                 "scope": "course",
             }
@@ -122,7 +126,7 @@ def ban_user(
             **lookup_kwargs,
             defaults={
                 **ban_kwargs,
-                "banned_by": banned_by,
+                "banned_by": moderator,
                 "reason": reason or "No reason provided",
                 "is_active": True,
                 "banned_at": timezone.now(),
@@ -133,7 +137,7 @@ def ban_user(
         if not created and not ban.is_active:
             # Reactivate previously deactivated ban
             ban.is_active = True
-            ban.banned_by = banned_by
+            ban.banned_by = moderator
             ban.reason = reason or ban.reason
             ban.banned_at = timezone.now()
             ban.unbanned_at = None
@@ -151,15 +155,15 @@ def ban_user(
                     "Cleaned up %d orphaned exception(s) for org ban: ban_id=%s, user_id=%s",
                     deleted_count,
                     ban.id,
-                    user.id,  # type: ignore[attr-defined]
+                    banned_user.id,  # type: ignore[attr-defined]
                 )
 
         # Create audit log
         ModerationAuditLog.objects.create(
             action_type=ModerationAuditLog.ACTION_BAN,
             source=ModerationAuditLog.SOURCE_HUMAN,
-            target_user=user,
-            moderator=banned_by,
+            target_user=banned_user,
+            moderator=moderator,
             course_id=str(course_key) if course_key else None,
             scope=scope,
             reason=reason,
@@ -169,7 +173,7 @@ def ban_user(
             },
             # AI moderation fields (required by schema, not applicable for ban actions)
             body="",
-            original_author=user,
+            original_author=banned_user,
             classification="",
             classifier_output={},
             actions_taken=[],
@@ -180,11 +184,11 @@ def ban_user(
 
         log.info(
             "User banned: user_id=%s, scope=%s, course_id=%s, org_key=%s, banned_by=%s",
-            user.id,  # type: ignore[attr-defined]
+            banned_user.id,  # type: ignore[attr-defined]
             scope,
             course_id,
             org_key,
-            banned_by.id,  # type: ignore[attr-defined]
+            moderator.id,  # type: ignore[attr-defined]
         )
 
     result = _serialize_ban(ban)
@@ -466,6 +470,8 @@ def get_ban(
     Raises:
         ValueError: If neither ban_id nor user provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     try:
         if ban_id:
             ban = DiscussionBan.objects.select_related(
@@ -689,6 +695,8 @@ def create_audit_log(
     Returns:
         ModerationAuditLog: Created audit log instance
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     return ModerationAuditLog.objects.create(
         action_type=action_type,
         source=ModerationAuditLog.SOURCE_HUMAN,

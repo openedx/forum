@@ -18,6 +18,13 @@ from forum.backends.mysql.models import (
     ModerationAuditLog,
 )
 
+try:
+    from edx_django_utils.monitoring import set_custom_attribute
+except ImportError:  # pragma: no cover
+    def set_custom_attribute(*args, **kwargs):
+        """No-op fallback when monitoring utils are unavailable."""
+        return None
+
 User = get_user_model()
 log = logging.getLogger(__name__)
 
@@ -47,6 +54,8 @@ def ban_user(
     Raises:
         ValueError: If invalid parameters provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     if scope not in ["course", "organization"]:
         raise ValueError(f"Invalid scope: {scope}. Must be 'course' or 'organization'")
 
@@ -209,6 +218,8 @@ def unban_user(
         DiscussionBan.DoesNotExist: If ban not found
         ValueError: If neither ban_id nor user provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     # Find the ban either by ID or by user
     if ban_id:
         try:

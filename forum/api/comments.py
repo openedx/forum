@@ -14,7 +14,31 @@ from forum.backend import get_backend
 from forum.serializers.comment import CommentSerializer
 from forum.utils import ForumV2RequestError
 
+try:
+    from edx_django_utils.monitoring import (  # type: ignore[import-untyped]
+        set_custom_attribute as _set_custom_attribute,
+    )
+except ImportError:  # pragma: no cover
+
+    def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
+        """No-op fallback when monitoring utils are unavailable."""
+        return None
+
+
+def set_custom_attribute(key: str, value: Any) -> None:
+    """Set a Datadog custom attribute when monitoring is available."""
+    _set_custom_attribute(key, value)
+
+
 log = logging.getLogger(__name__)
+
+
+def _backend_name(backend: Any) -> str:
+    """Return the normalized forum backend name for telemetry."""
+    backend_class_name = backend.__class__.__name__.lower()
+    if "mongo" in backend_class_name:
+        return "mongodb"
+    return "mysql"
 
 
 def prepare_comment_api_response(
@@ -429,6 +453,7 @@ def get_deleted_comments_for_course(
         dict: Dictionary containing deleted comments and pagination info
     """
     backend = get_backend(course_id)()
+    set_custom_attribute("forum.backend", _backend_name(backend))
     return backend.get_deleted_comments_for_course(course_id, page, per_page, author_id)
 
 
@@ -447,6 +472,7 @@ def restore_comment(
         bool: True if comment was restored, False if not found
     """
     backend = get_backend(course_id)()
+    set_custom_attribute("forum.backend", _backend_name(backend))
     return backend.restore_comment(comment_id, restored_by=restored_by)
 
 

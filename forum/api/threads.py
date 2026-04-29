@@ -14,7 +14,31 @@ from forum.backend import get_backend
 from forum.serializers.thread import ThreadSerializer
 from forum.utils import ForumV2RequestError, get_int_value_from_collection, str_to_bool
 
+try:
+    from edx_django_utils.monitoring import (  # type: ignore[import-untyped]
+        set_custom_attribute as _set_custom_attribute,
+    )
+except ImportError:  # pragma: no cover
+
+    def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
+        """No-op fallback when monitoring utils are unavailable."""
+        return None
+
+
+def set_custom_attribute(key: str, value: Any) -> None:
+    """Set a Datadog custom attribute when monitoring is available."""
+    _set_custom_attribute(key, value)
+
+
 log = logging.getLogger(__name__)
+
+
+def _backend_name(backend: Any) -> str:
+    """Return the normalized forum backend name for telemetry."""
+    backend_class_name = backend.__class__.__name__.lower()
+    if "mongo" in backend_class_name:
+        return "mongodb"
+    return "mysql"
 
 
 def _get_thread_data_from_request_data(data: dict[str, Any]) -> dict[str, Any]:
@@ -452,6 +476,7 @@ def get_deleted_threads_for_course(
         dict: Dictionary containing deleted threads and pagination info
     """
     backend = get_backend(course_id)()
+    set_custom_attribute("forum.backend", _backend_name(backend))
     return backend.get_deleted_threads_for_course(course_id, page, per_page, author_id)
 
 
@@ -470,6 +495,7 @@ def restore_thread(
         bool: True if thread was restored, False if not found
     """
     backend = get_backend(course_id)()
+    set_custom_attribute("forum.backend", _backend_name(backend))
     return backend.restore_thread(thread_id, restored_by=restored_by)
 
 

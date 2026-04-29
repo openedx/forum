@@ -18,6 +18,22 @@ from forum.backends.mysql.models import (
     ModerationAuditLog,
 )
 
+try:
+    from edx_django_utils.monitoring import (  # type: ignore[import-untyped]
+        set_custom_attribute as _set_custom_attribute,
+    )
+except ImportError:  # pragma: no cover
+
+    def _set_custom_attribute(*args: Any, **kwargs: Any) -> None:
+        """No-op fallback when monitoring utils are unavailable."""
+        return None
+
+
+def set_custom_attribute(key: str, value: Any) -> None:
+    """Set a Datadog custom attribute when monitoring is available."""
+    _set_custom_attribute(key, value)
+
+
 User = get_user_model()
 log = logging.getLogger(__name__)
 
@@ -30,6 +46,7 @@ def ban_user(
     scope: str = "course",
     reason: str = "",
 ) -> dict[str, Any]:
+    # pylint: disable=too-many-statements
     """
     Ban a user from discussions.
 
@@ -47,6 +64,8 @@ def ban_user(
     Raises:
         ValueError: If invalid parameters provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     if scope not in ["course", "organization"]:
         raise ValueError(f"Invalid scope: {scope}. Must be 'course' or 'organization'")
 
@@ -209,6 +228,8 @@ def unban_user(
         DiscussionBan.DoesNotExist: If ban not found
         ValueError: If neither ban_id nor user provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     # Find the ban either by ID or by user
     if ban_id:
         try:
@@ -372,6 +393,8 @@ def get_banned_users(
     Returns:
         list: List of ban records (excludes org-level bans with exceptions for the course)
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     queryset = DiscussionBan.objects.select_related("user", "banned_by", "unbanned_by")
 
     if not include_inactive:
@@ -448,6 +471,8 @@ def get_ban(
     Raises:
         ValueError: If neither ban_id nor user provided
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     try:
         if ban_id:
             ban = DiscussionBan.objects.select_related(
@@ -671,6 +696,8 @@ def create_audit_log(
     Returns:
         ModerationAuditLog: Created audit log instance
     """
+    set_custom_attribute("forum.backend", "mysql")
+
     return ModerationAuditLog.objects.create(
         action_type=action_type,
         source=ModerationAuditLog.SOURCE_HUMAN,

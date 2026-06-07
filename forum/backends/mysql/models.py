@@ -403,28 +403,29 @@ class Comment(Content):
         sort = kwargs.pop("sort", None)
         resp_skip = kwargs.pop("resp_skip", 0)
         resp_limit = kwargs.pop("resp_limit", None)
-        comments = Comment.objects.filter(**kwargs)
-        result = []
-        if sort:
-            if sort == 1:
-                result = sorted(
-                    comments, key=lambda x: (x.sort_key is None, x.sort_key or "")
-                )
-            elif sort == -1:
-                result = sorted(
-                    comments,
-                    key=lambda x: (x.sort_key is None, x.sort_key or ""),
-                    reverse=True,
-                )
+        comments_qs = Comment.objects.filter(**kwargs)
 
-        paginated_comments = result or list(comments)
+        # Order by primary key, which is monotonically increasing with creation
+        # time. The previous implementation sorted by `sort_key`, a CharField
+        # containing the PK rendered as a string ("10" < "2" lexicographically),
+        # which produced an interleaved order that looked like sorting was not
+        # being applied at all.
+        # See https://github.com/openedx/frontend-app-discussions/issues/823
+        if sort == -1:
+            comments_qs = comments_qs.order_by("-pk")
+        else:
+            # Treat sort == 1 and the unsorted/None case the same way: ascending
+            # by PK. The legacy "no sort" path silently returned no rows when
+            # `resp_limit` was set (because pagination indexed into an empty
+            # `result` list); using a deterministic order fixes that too.
+            comments_qs = comments_qs.order_by("pk")
 
-        # Apply pagination if resp_limit is provided
         if resp_limit is not None:
-            resp_end = resp_skip + resp_limit
-            paginated_comments = result[resp_skip:resp_end]
-        elif resp_skip:  # If resp_limit is None but resp_skip is provided
-            paginated_comments = result[resp_skip:]
+            paginated_comments = list(comments_qs[resp_skip:resp_skip + resp_limit])
+        elif resp_skip:
+            paginated_comments = list(comments_qs[resp_skip:])
+        else:
+            paginated_comments = list(comments_qs)
 
         return [content.to_dict() for content in paginated_comments]
 

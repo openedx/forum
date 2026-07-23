@@ -293,11 +293,10 @@ def _get_stats_for_usernames(
     course_id: str, usernames: list[str], backend: Any
 ) -> list[dict[str, Any]]:
     """Get stats for specific usernames."""
-    users = backend.get_users()
+    users = backend.get_users(username__in=usernames)
+
     stats_query = []
     for user in users:
-        if user["username"] not in usernames:
-            continue
         course_stats = user.get("course_stats")
         if course_stats:
             for course_stat in course_stats:

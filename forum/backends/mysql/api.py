@@ -2157,8 +2157,13 @@ class MySQLBackend(AbstractBackend):
         Returns:
             A list of users.
         """
+        kwargs = kwargs.copy()
+        sort_key = kwargs.pop("sort_key", None)
+        username_in = kwargs.pop("username__in", None)
+        if username_in is not None:
+            kwargs["user__username__in"] = username_in
+
         forum_users = ForumUser.objects.filter(**kwargs)
-        sort_key = kwargs.get("sort_key")
         if sort_key:
             forum_users = forum_users.order_by(sort_key)
 

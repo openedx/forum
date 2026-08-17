@@ -44,9 +44,13 @@ jobs:
           git_committer_email: "actions@users.noreply.github.com"
           changelog: "false"
 
+      # Attaching the built dists to the GitHub Release is cosmetic; PyPI is published
+      # from the uploaded artifact below via OIDC. Keep this non-blocking so a failure
+      # here (e.g. the HTTP 422 on asset upload) cannot fail the job and skip publish.
       - name: Upload to GitHub Release Assets
         uses: python-semantic-release/publish-action@98e6c872368aff4290ef8444db095e5bcd3fba6c # v10.6.1
         if: steps.release.outputs.released == 'true'
+        continue-on-error: true
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.release.outputs.tag }}

@@ -76,6 +76,9 @@ build_command = "pip install build && SETUPTOOLS_SCM_PRETEND_VERSION=$NEW_VERSIO
 # Repo is on 0.x: prevent a feat: commit from bumping 0.x.y → 1.0.0
 allow_zero_version = true
 major_on_zero = false
+# PSR reads git tags only; default format is v{version}. A matching baseline tag
+# (e.g. v0.4.3) must exist for it to detect the last release. Pinned for clarity.
+tag_format = "v{version}"
 
 # uv configuration
 # https://docs.astral.sh/uv/reference/settings/

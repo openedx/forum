@@ -1,9 +1,12 @@
 """Tests for Users apis."""
 
 from typing import Any
+from unittest.mock import patch
+
 import pytest
 
 from forum.constants import RETIRED_BODY, RETIRED_TITLE
+from forum.utils import ForumV2RequestError
 from test_utils.client import APIClient
 
 pytestmark = pytest.mark.django_db
@@ -377,17 +380,31 @@ def test_attempts_to_replace_username_without_sending_new_username(
     assert response.status_code == 500
 
 
+@pytest.mark.parametrize("data", [{}, {"unrelated_param": "value"}])
 def test_attempts_to_retire_user_without_sending_retired_username(
-    api_client: APIClient, patched_get_backend: Any
+    api_client: APIClient, patched_get_backend: Any, data: dict[str, str]
 ) -> None:
     """Test retire user api without sending retired username."""
     backend = patched_get_backend
     user_id = backend.generate_id()
     response = api_client.post_json(
         f"/api/v2/users/{user_id}/retire",
-        data={},
+        data=data,
     )
     assert response.status_code == 500
+
+
+def test_attempts_to_retire_user_with_backend_error(api_client: APIClient, patched_get_backend: Any) -> None:
+    """Test that a forum error raised while retiring a user is returned as a 400."""
+    backend = patched_get_backend
+    user_id = backend.generate_id()
+    with patch("forum.views.users.retire_user", side_effect=ForumV2RequestError("some error")):
+        response = api_client.post_json(
+            f"/api/v2/users/{user_id}/retire",
+            data={"retired_username": "retired_user_test"},
+        )
+    assert response.status_code == 400
+    assert response.json() == {"error": "some error"}
 
 
 def test_attempts_to_retire_non_existent_user(

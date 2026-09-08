@@ -100,14 +100,88 @@ def test_search_threads(mock_get_client: Mock) -> None:
     expected_params = {
         "q": "thoughts",
         "query_by": "text",
-        "filter_by": "context:`course` && commentable_ids:[`4`, `7[||`] "
+        # `commentable_id` is singular: it must match the field name in collection_schema()
+        "filter_by": "context:`course` && commentable_id:[`4`, `7[||`] "
         "&& course_id:=`course-v1:OpenedX+DemoX+DemoCourse`",
-        "per_page": constants.FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT,
+        "per_page": typesense.TYPESENSE_MAX_PER_PAGE,
+        "page": 1,
     }
+    # a short page means the results are exhausted, so only one request is made
     mock_search.assert_called_once_with(expected_params)
 
     # suggested text is not supported; always returns None
     assert backend.get_suggested_text("foo") is None
+
+
+def test_per_page_within_typesense_limit() -> None:
+    """Typesense returns HTTP 422 for per_page above 250."""
+    assert typesense.TYPESENSE_MAX_PER_PAGE <= 250
+
+
+@patch("forum.search.typesense.get_typesense_client")
+def test_search_threads_paginates(mock_get_client: Mock) -> None:
+    """
+    A full page means there may be more, so the backend walks pages until it has
+    covered FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT hits or a page comes back short.
+    """
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_search = mock_client.collections[
+        "forum_unittest_prefix_forum"
+    ].documents.search
+
+    full_page = {
+        "hits": [
+            {"document": {"thread_id": f"T{index}"}}
+            for index in range(typesense.TYPESENSE_MAX_PER_PAGE)
+        ]
+    }
+    short_page = {"hits": [{"document": {"thread_id": "LAST"}}]}
+    mock_search.side_effect = [full_page, short_page]
+
+    backend = typesense.TypesenseThreadSearchBackend()
+    thread_ids = backend.get_thread_ids(
+        context="course",
+        group_ids=[],
+        search_text="thoughts",
+        commentable_ids=None,
+        course_id=None,
+    )
+
+    assert len(thread_ids) == typesense.TYPESENSE_MAX_PER_PAGE + 1
+    assert "LAST" in thread_ids
+    assert [call.args[0]["page"] for call in mock_search.call_args_list] == [1, 2]
+
+
+@patch("forum.search.typesense.get_typesense_client")
+def test_search_threads_stops_at_deep_search_budget(mock_get_client: Mock) -> None:
+    """Full pages all the way down still stop at FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT."""
+    mock_client = MagicMock()
+    mock_get_client.return_value = mock_client
+    mock_search = mock_client.collections[
+        "forum_unittest_prefix_forum"
+    ].documents.search
+    mock_search.return_value = {
+        "hits": [
+            {"document": {"thread_id": f"T{index}"}}
+            for index in range(typesense.TYPESENSE_MAX_PER_PAGE)
+        ]
+    }
+
+    backend = typesense.TypesenseThreadSearchBackend()
+    backend.get_thread_ids(
+        context="course",
+        group_ids=[],
+        search_text="thoughts",
+        commentable_ids=None,
+        course_id=None,
+    )
+
+    expected_pages = (
+        constants.FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT
+        // typesense.TYPESENSE_MAX_PER_PAGE
+    )
+    assert mock_search.call_count == expected_pages
 
 
 @patch("forum.search.typesense.get_typesense_client")

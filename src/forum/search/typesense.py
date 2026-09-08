@@ -2,6 +2,7 @@
 Typesense backend for searching comments and threads.
 """
 
+import math
 from typing import Any, Optional, cast
 
 from bs4 import BeautifulSoup
@@ -22,6 +23,11 @@ from forum.search.base import (
 )
 
 _TYPESENSE_CLIENT: Client | None = None
+
+# Typesense rejects any search with per_page above 250 (HTTP 422), so a deep
+# search for FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT hits has to be paginated.
+# https://typesense.org/docs/30.2/api/search.html#pagination-parameters
+TYPESENSE_MAX_PER_PAGE = 250
 
 
 def get_typesense_client() -> Client:
@@ -169,6 +175,7 @@ def build_search_parameters(
     course_id: str | None,
     context: str,
     commentable_ids: list[str] | None,
+    page: int = 1,
 ) -> SearchParameters:
     """
     Build Typesense search parameters for searching the index.
@@ -180,7 +187,8 @@ def build_search_parameters(
 
     if commentable_ids:
         safe_ids = ", ".join(quote_filter_value(value) for value in commentable_ids)
-        filters.append(f"commentable_ids:[{safe_ids}]")
+        # The field is `commentable_id`, singular, as declared in collection_schema().
+        filters.append(f"commentable_id:[{safe_ids}]")
 
     if course_id:
         filters.append(f"course_id:={quote_filter_value(course_id)}")
@@ -189,7 +197,8 @@ def build_search_parameters(
         "q": search_text,
         "query_by": "text",
         "filter_by": " && ".join(filters),
-        "per_page": FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT,
+        "per_page": TYPESENSE_MAX_PER_PAGE,
+        "page": page,
     }
 
 
@@ -408,18 +417,26 @@ class TypesenseThreadSearchBackend(BaseThreadSearchBackend):
         Retrieve thread IDs based on search criteria.
         """
         client = get_typesense_client()
+        collection = client.collections[collection_name()]
 
-        params = build_search_parameters(
-            search_text=search_text,
-            course_id=course_id,
-            context=context,
-            commentable_ids=commentable_ids,
+        thread_ids: set[str] = set()
+        page_count = math.ceil(
+            FORUM_MAX_DEEP_SEARCH_COMMENT_COUNT / TYPESENSE_MAX_PER_PAGE
         )
+        for page in range(1, page_count + 1):
+            params = build_search_parameters(
+                search_text=search_text,
+                course_id=course_id,
+                context=context,
+                commentable_ids=commentable_ids,
+                page=page,
+            )
+            results = collection.documents.search(params)
+            hits = cast(list[dict[str, Any]], results.get("hits", []))
+            thread_ids.update(hit["document"]["thread_id"] for hit in hits)
+            if len(hits) < TYPESENSE_MAX_PER_PAGE:
+                break
 
-        results = client.collections[collection_name()].documents.search(params)
-        thread_ids: set[str] = {
-            hit["document"]["thread_id"] for hit in results.get("hits", [])  # type: ignore
-        }
         return list(thread_ids)
 
     def get_suggested_text(self, search_text: str) -> Optional[str]:

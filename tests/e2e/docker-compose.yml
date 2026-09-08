@@ -17,3 +17,10 @@ services:
             - 127.0.0.1:5700:7700
         environment:
             MEILI_MASTER_KEY: "MEILISEARCH_MASTER_KEY"
+
+    typesense:
+        # https://hub.docker.com/r/typesense/typesense/tags
+        image: docker.io/typesense/typesense:30.2
+        ports:
+            - 127.0.0.1:5108:8108
+        command: "--data-dir /tmp --api-key=example-typesense-api-key"

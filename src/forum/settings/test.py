@@ -82,4 +82,4 @@ USE_TZ = True
 
 TYPESENSE_COLLECTION_PREFIX = "forum_unittest_prefix_"
 TYPESENSE_API_KEY = "example-typesense-api-key"
-TYPESENSE_URLS = ["http://0.0.0.0:8108"]
+TYPESENSE_URLS = ["http://localhost:5108"]

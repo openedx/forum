@@ -2017,8 +2017,6 @@ class MySQLBackend(AbstractBackend):
 
         if "username" in data:
             user.username = data["username"]
-        if "email" in data:
-            user.email = data["email"]
         if "default_sort_key" in data:
             forum_user.default_sort_key = data["default_sort_key"]
         if "read_states" in data and data["read_states"] == []:

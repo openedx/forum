@@ -55,6 +55,7 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
         edit_history (list): A list of previous versions of the content.
         closed (bool): Whether the content is closed for further interactions.
         type (str): The type of content (e.g., "post", "comment").
+        is_spam (bool): Whether the content was flagged as spam by AI moderation.
     """
 
     id = serializers.CharField(source="_id")
@@ -79,6 +80,7 @@ class ContentSerializer(serializers.Serializer[dict[str, Any]]):
     edit_history = EditHistorySerializer(default=[], many=True)
     closed = serializers.BooleanField(default=False)
     type = serializers.CharField()
+    is_spam = serializers.BooleanField(default=False)
 
     def create(self, validated_data: dict[str, Any]) -> Any:
         """Raise NotImplementedError"""

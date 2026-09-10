@@ -940,7 +940,7 @@ class MySQLBackend(AbstractBackend):
             is_read, unread_count = read_states.get(
                 str(thread.pk), (False, thread.comment_count)
             )
-            is_endorsed = threads_endorsed.get(thread.pk, False)
+            is_endorsed = threads_endorsed.get(str(thread.pk), False)
             abuse_flagged_count = threads_flagged.get(str(thread.pk), 0)
             presenters.append(
                 cls.prepare_thread(

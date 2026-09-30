@@ -7,7 +7,7 @@ import pytest
 from django.contrib.auth import get_user_model
 
 from forum.backends.mysql.api import MySQLBackend as backend
-from forum.backends.mysql.models import AbuseFlagger, CommentThread, CourseStat
+from forum.backends.mysql.models import AbuseFlagger, Comment, CommentThread, CourseStat
 from forum.serializers.thread import ThreadSerializer
 
 User = get_user_model()
@@ -173,6 +173,54 @@ def test_update_stats_for_course_calls_build_course_stats() -> None:
     with patch.object(backend, "build_course_stats") as mock_build_course_stats:
         backend.update_stats_for_course(str(user.pk), course_id, active_flags=1)
         mock_build_course_stats.assert_called_once_with(str(user.pk), course_id)
+
+
+@pytest.mark.django_db
+def test_threads_presentor_includes_endorsed_status() -> None:
+    """Test that threads_presentor marks threads with an endorsed response as endorsed."""
+    user = User.objects.create(username="testuser")
+    course_id = "course123"
+    answered_thread = CommentThread.objects.create(
+        author=user,
+        course_id=course_id,
+        title="Answered question",
+        body="This question has an endorsed response",
+        thread_type="question",
+        context="course",
+    )
+    unanswered_thread = CommentThread.objects.create(
+        author=user,
+        course_id=course_id,
+        title="Unanswered question",
+        body="This question has no endorsed response",
+        thread_type="question",
+        context="course",
+    )
+    Comment.objects.create(
+        author=user,
+        course_id=course_id,
+        body="Endorsed response",
+        comment_thread=answered_thread,
+        endorsed=True,
+    )
+    Comment.objects.create(
+        author=user,
+        course_id=course_id,
+        body="Unendorsed response",
+        comment_thread=unanswered_thread,
+    )
+
+    presented = backend.threads_presentor(
+        [str(answered_thread.pk), str(unanswered_thread.pk)],
+        str(user.pk),
+        course_id,
+    )
+
+    endorsed_by_id = {str(thread["_id"]): thread["endorsed"] for thread in presented}
+    assert endorsed_by_id == {
+        str(answered_thread.pk): True,
+        str(unanswered_thread.pk): False,
+    }
 
 
 @pytest.mark.django_db

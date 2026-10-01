@@ -54,6 +54,11 @@ extensions = [
     'sphinx.ext.napoleon'
 ]
 
+# forum.toggles reads its waffle flags from edx-platform, which is the host
+# application and is not installed when the docs are built. Mocking it lets
+# autodoc document the module instead of failing to import it.
+autodoc_mock_imports = ['openedx']
+
 # A list of warning types to suppress arbitrary warning messages.
 suppress_warnings = [
     'image.nonlocal_uri',

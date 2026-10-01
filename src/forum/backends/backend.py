@@ -486,3 +486,13 @@ class AbstractBackend:
     def delete_user_posts(user_id: str, course_id: str) -> dict[str, int]:
         """Delete all threads and comments by user in course. Returns counts before deletion."""
         raise NotImplementedError
+
+    @classmethod
+    def flag_content_as_spam(cls, content_type: str, content_id: str) -> int:
+        """Flag content as spam. Returns the number of records modified."""
+        raise NotImplementedError
+
+    @classmethod
+    def unflag_content_as_spam(cls, content_type: str, content_id: str) -> int:
+        """Remove the spam flag from content. Returns the number of records modified."""
+        raise NotImplementedError

@@ -122,6 +122,7 @@ def create_or_update_thread(thread_data: dict[str, Any]) -> None:
             anonymous_to_peers=thread_data.get("anonymous_to_peers", False),
             closed=thread_data.get("closed", False),
             pinned=thread_data.get("pinned", False),
+            is_spam=thread_data.get("is_spam", False),
             last_activity_at=make_aware(thread_data["last_activity_at"]),
             commentable_id=thread_data.get("commentable_id"),
         )
@@ -213,6 +214,7 @@ def create_or_update_comment(comment_data: dict[str, Any]) -> None:
             endorsed=comment_data.get("endorsed", False),
             child_count=comment_data.get("child_count", 0),
             depth=1 if parent else 0,
+            is_spam=comment_data.get("is_spam", False),
         )
         sort_key = f"{parent.pk}-{comment.pk}" if parent else f"{comment.pk}"
         # Use QuerySet.update() to preserve original timestamps from MongoDB

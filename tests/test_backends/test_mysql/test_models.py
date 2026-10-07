@@ -17,6 +17,7 @@ from forum.backends.mysql.models import (
     ForumUser,
     HistoricalAbuseFlagger,
     LastReadTime,
+    ModerationAuditLog,
     ReadState,
     Subscription,
     UserVote,
@@ -1117,3 +1118,59 @@ def test_comment_to_dict_fallback_to_current_username() -> None:
 
     comment_dict = comment.to_dict()
     assert comment_dict["author_username"] == "currentuser"
+
+
+@pytest.mark.django_db
+def test_moderation_audit_log_to_dict() -> None:
+    """A moderation audit log serializes both the verdict and who it concerns."""
+    author = User.objects.create(username="spammer")
+    moderator = User.objects.create(username="moderator")
+    audit_log = ModerationAuditLog.objects.create(
+        body="Buy followers now",
+        classifier_output={"classification": "spam_or_scam"},
+        reasoning="Promotional language and an external contact request",
+        classification="spam_or_scam",
+        actions_taken=["flagged"],
+        confidence_score=0.9,
+        moderator_override=True,
+        override_reason="Legitimate study group invite",
+        moderator=moderator,
+        original_author=author,
+    )
+
+    audit_log_dict = audit_log.to_dict()
+
+    assert audit_log_dict["_id"] == str(audit_log.pk)
+    assert audit_log_dict["timestamp"] == audit_log.timestamp.isoformat()
+    assert audit_log_dict["body"] == "Buy followers now"
+    assert audit_log_dict["classifier_output"] == {"classification": "spam_or_scam"}
+    assert audit_log_dict["classification"] == "spam_or_scam"
+    assert audit_log_dict["actions_taken"] == ["flagged"]
+    assert audit_log_dict["confidence_score"] == 0.9
+    assert audit_log_dict["moderator_override"] is True
+    assert audit_log_dict["override_reason"] == "Legitimate study group invite"
+    assert audit_log_dict["moderator_id"] == str(moderator.pk)
+    assert audit_log_dict["moderator_username"] == "moderator"
+    assert audit_log_dict["original_author_id"] == str(author.pk)
+    assert audit_log_dict["original_author_username"] == "spammer"
+
+
+@pytest.mark.django_db
+def test_moderation_audit_log_to_dict_without_a_moderator() -> None:
+    """Most audit logs are the AI's alone, with no human override."""
+    author = User.objects.create(username="another-spammer")
+    audit_log = ModerationAuditLog.objects.create(
+        body="Guaranteed returns",
+        classifier_output={"classification": "spam"},
+        reasoning="Investment scheme language",
+        classification="spam",
+        actions_taken=["flagged", "soft_deleted"],
+        original_author=author,
+    )
+
+    audit_log_dict = audit_log.to_dict()
+
+    assert audit_log_dict["moderator_id"] is None
+    assert audit_log_dict["moderator_username"] is None
+    assert audit_log_dict["confidence_score"] is None
+    assert audit_log_dict["moderator_override"] is False

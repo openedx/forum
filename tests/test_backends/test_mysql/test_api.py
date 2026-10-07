@@ -274,3 +274,83 @@ class TestMongoAPI(unittest.TestCase):
         assert threads["thread_count"] == 2
         for thread in threads["collection"]:
             assert thread["commentable_id"] == "id_2"
+
+
+@pytest.mark.django_db
+def test_flag_and_unflag_thread_as_spam() -> None:
+    """AI moderation marks a thread as spam through the backend, and can undo it."""
+    author = User.objects.create(username="spam-thread-author")
+    thread = CommentThread.objects.create(
+        author=author,
+        course_id="course123",
+        title="Buy followers now",
+        body="Message me on WhatsApp",
+        thread_type="discussion",
+        context="course",
+    )
+
+    assert backend.flag_content_as_spam("CommentThread", str(thread.pk)) == 1
+    thread.refresh_from_db()
+    assert thread.is_spam is True
+
+    assert backend.unflag_content_as_spam("CommentThread", str(thread.pk)) == 1
+    thread.refresh_from_db()
+    assert thread.is_spam is False
+
+
+@pytest.mark.django_db
+def test_flag_and_unflag_comment_as_spam() -> None:
+    """Anything that is not a thread is flagged as a comment."""
+    author = User.objects.create(username="spam-comment-author")
+    thread = CommentThread.objects.create(
+        author=author,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    comment = Comment.objects.create(
+        author=author,
+        comment_thread=thread,
+        course_id="course123",
+        body="Guaranteed returns, DM me",
+    )
+
+    assert backend.flag_content_as_spam("Comment", str(comment.pk)) == 1
+    comment.refresh_from_db()
+    assert comment.is_spam is True
+
+    assert backend.unflag_content_as_spam("Comment", str(comment.pk)) == 1
+    comment.refresh_from_db()
+    assert comment.is_spam is False
+
+
+@pytest.mark.django_db
+def test_is_spam_is_only_written_when_passed() -> None:
+    """An update that says nothing about spam leaves the flag alone."""
+    author = User.objects.create(username="untouched-author")
+    thread = CommentThread.objects.create(
+        author=author,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+        is_spam=True,
+    )
+    comment = Comment.objects.create(
+        author=author,
+        comment_thread=thread,
+        course_id="course123",
+        body="A comment",
+        is_spam=True,
+    )
+
+    backend.update_thread(str(thread.pk), title="Edited title")
+    backend.update_comment(str(comment.pk), body="Edited body")
+
+    thread.refresh_from_db()
+    comment.refresh_from_db()
+    assert thread.is_spam is True
+    assert comment.is_spam is True

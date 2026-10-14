@@ -67,6 +67,11 @@ In edx-platform, forum v2 is not enabled by default and edx-platform will keep c
 
 Note that Tutor enables this flag for all forum plugin users, such that you don't have to run this command yourself. If you wish to migrate your courses one by one to the new forum v2 app, you may create the corresponding "Waffle flag course override" objects in your LMS administration panel, at: ``http(s)://<LMS_HOST>/admin/waffle_utils/waffleflagcourseoverridemodel/``.
 
+Forum HTTP API
+--------------
+
+The legacy forum HTTP API under ``/forum/api/v1/`` and ``/forum/api/v2/`` is not routed by default.  edx-platform calls ``forum.api`` in process and does not need it.  If you serve the forum as a separate HTTP service, set ``FORUM_ENABLE_HTTP_API = True``.  Callers must then authenticate as a staff account, since the endpoints act on behalf of whichever user the request names.  See `GHSA-c6fp-f54c-6cv4 <https://github.com/openedx/forum/security/advisories/GHSA-c6fp-f54c-6cv4>`__.
+
 Migration from MongoDB to MySQL
 -------------------------------
 

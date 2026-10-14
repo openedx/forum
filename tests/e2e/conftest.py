@@ -10,18 +10,11 @@ import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
 from forum.mongo import get_database
-from test_utils.client import APIClient
 
 log = logging.getLogger(__name__)
 
 MONGO_TIMEOUT = 60
 MONGO_SLEEP_INTERVAL = 5
-
-
-@pytest.fixture(name="api_client")
-def fixture_api_client() -> APIClient:
-    """Create an API client for testing."""
-    return APIClient()
 
 
 def wait_for_mongodb() -> None:

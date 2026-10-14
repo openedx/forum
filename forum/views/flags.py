@@ -1,23 +1,20 @@
 """Forum Flag API Views."""
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api.flags import update_comment_flag, update_thread_flag
 from forum.utils import ForumV2RequestError, str_to_bool
+from forum.views.base import ForumAPIView
 
 
-class CommentFlagAPIView(APIView):
+class CommentFlagAPIView(ForumAPIView):
     """
     API View for flagging/unflagging comments.
 
     Handles PUT requests to flag or unflag a comment.
     """
-
-    permission_classes = (AllowAny,)
 
     def put(self, request: Request, comment_id: str, action: str) -> Response:
         """
@@ -43,14 +40,12 @@ class CommentFlagAPIView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ThreadFlagAPIView(APIView):
+class ThreadFlagAPIView(ForumAPIView):
     """
     API View for flagging/unflagging threads.
 
     Handles PUT requests to flag or unflag a thread.
     """
-
-    permission_classes = (AllowAny,)
 
     def put(self, request: Request, thread_id: str, action: str) -> Response:
         """

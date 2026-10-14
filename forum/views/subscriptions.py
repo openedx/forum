@@ -3,10 +3,8 @@
 from typing import Any
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api.subscriptions import (
     create_subscription,
@@ -16,16 +14,15 @@ from forum.api.subscriptions import (
 )
 from forum.pagination import ForumPagination
 from forum.utils import ForumV2RequestError
+from forum.views.base import ForumAPIView
 
 
-class SubscriptionAPIView(APIView):
+class SubscriptionAPIView(ForumAPIView):
     """
     API View for managing subscriptions.
 
     This view provides endpoints for subscribing and unsubscribing users to/from sources.
     """
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: Request, user_id: str) -> Response:
         """
@@ -70,14 +67,12 @@ class SubscriptionAPIView(APIView):
         return Response(data=serilized_data, status=status.HTTP_200_OK)
 
 
-class UserSubscriptionAPIView(APIView):
+class UserSubscriptionAPIView(ForumAPIView):
     """
     API View for managing user subscriptions.
 
     This view provides an endpoint for retrieving a user's subscriptions.
     """
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, user_id: str) -> Response:
         """
@@ -106,14 +101,13 @@ class UserSubscriptionAPIView(APIView):
         return Response(data=serilized_data, status=status.HTTP_200_OK)
 
 
-class ThreadSubscriptionAPIView(APIView):
+class ThreadSubscriptionAPIView(ForumAPIView):
     """
     API View for managing thread subscriptions.
 
     This view provides an endpoint for retrieving subscriptions to a specific thread.
     """
 
-    permission_classes = (AllowAny,)
     pagination_class = ForumPagination
 
     def get(self, request: Request, thread_id: str) -> Response:

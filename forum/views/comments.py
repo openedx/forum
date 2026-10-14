@@ -1,11 +1,9 @@
 """Forum Comments API Views."""
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
-from rest_framework.views import APIView
 
 from forum.api import (
     create_parent_comment,
@@ -15,14 +13,13 @@ from forum.api import (
     update_comment,
 )
 from forum.utils import ForumV2RequestError, str_to_bool
+from forum.views.base import ForumAPIView
 
 
-class CommentsAPIView(APIView):
+class CommentsAPIView(ForumAPIView):
     """
     API View to handle GET, POST, PUT, and DELETE requests for comments.
     """
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, comment_id: str) -> Response:
         """
@@ -156,12 +153,10 @@ class CommentsAPIView(APIView):
         return Response(deleted_comment, status=status.HTTP_200_OK)
 
 
-class CreateThreadCommentAPIView(APIView):
+class CreateThreadCommentAPIView(ForumAPIView):
     """
     API View to handle POST request for parent comments.
     """
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: Request, thread_id: str) -> Response:
         """

@@ -1,19 +1,16 @@
 """Forum Views."""
 
 from django.http import HttpRequest
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.utils import handle_proxy_requests
+from forum.views.base import ForumAPIView
 
 
-class ForumProxyAPIView(APIView):
+class ForumProxyAPIView(ForumAPIView):
     """
     A Proxy API View to Redirect All API requests to forum/cs_comments_service urls.
     """
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: HttpRequest, suffix: str) -> Response:
         """

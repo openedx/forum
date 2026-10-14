@@ -2,7 +2,8 @@
 URLs for forum.
 """
 
-from django.urls import include, path
+from django.conf import settings
+from django.urls import URLPattern, URLResolver, include, path
 
 from forum.views.commentables import CommentablesCountAPIView
 from forum.views.comments import CommentsAPIView, CreateThreadCommentAPIView
@@ -166,9 +167,40 @@ api_patterns = [
     # ),
 ]
 
-urlpatterns = [
-    # for backward compatibility with edx-platform
-    path("api/v1/", include(api_patterns)),
-    # for when we will migrate edx-platform to the v2/ prefix
-    path("api/v2/", include(api_patterns)),
-]
+
+def http_api_enabled() -> bool:
+    """
+    Return True if the legacy forum HTTP API should be routed.
+
+    The endpoints above date from when the forum ran as a standalone
+    cs_comments_service behind a private network. They take the acting user
+    from a request parameter rather than from the session, so a caller may act
+    on behalf of any user; ``forum.permissions.IsForumServiceUser`` therefore
+    requires every caller to authenticate as a staff service account.
+
+    edx-platform no longer calls them: it imports ``forum.api`` and invokes it
+    in process. Routing them through the LMS plugin URLconf therefore widens
+    the platform's public surface for no benefit, so the default is off. A
+    settings module that has never heard of this flag also gets off, i.e. this
+    fails closed.
+
+    Operators who genuinely serve the forum as a separate HTTP service can set
+    ``FORUM_ENABLE_HTTP_API = True``. Prefer to keep the endpoints off the
+    public internet even then: one leaked staff credential reaches every
+    user's content.
+
+    Note that this is read once, at import time, so changing the setting needs
+    a process restart. Tests that flip it must reload this module.
+    """
+    return bool(getattr(settings, "FORUM_ENABLE_HTTP_API", False))
+
+
+urlpatterns: list[URLPattern | URLResolver] = []
+
+if http_api_enabled():
+    urlpatterns = [
+        # for backward compatibility with edx-platform
+        path("api/v1/", include(api_patterns)),
+        # for when we will migrate edx-platform to the v2/ prefix
+        path("api/v2/", include(api_patterns)),
+    ]

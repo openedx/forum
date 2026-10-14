@@ -5,17 +5,16 @@ Search API Views
 from typing import Any
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api.search import search_threads
 from forum.constants import FORUM_DEFAULT_PAGE, FORUM_DEFAULT_PER_PAGE
 from forum.utils import get_commentable_ids_from_params, get_group_ids_from_params
+from forum.views.base import ForumAPIView
 
 
-class SearchThreadsView(APIView):
+class SearchThreadsView(ForumAPIView):
     """
     A view that handles the search and retrieval of threads based on query parameters.
 
@@ -23,8 +22,6 @@ class SearchThreadsView(APIView):
     sorting, and pagination options. It also supports suggesting corrected search text if no results
     are found with the initial query.
     """
-
-    permission_classes = (AllowAny,)
 
     def _validate_and_extract_params(self, request: Request) -> dict[str, Any]:
         """

@@ -5,10 +5,8 @@ from typing import Any, cast
 
 from rest_framework import status
 from rest_framework.exceptions import ParseError
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api import get_user
 from forum.api.users import (
@@ -24,14 +22,13 @@ from forum.api.users import (
     update_users_in_course,
 )
 from forum.utils import ForumV2RequestError, get_group_ids_from_params, str_to_bool
+from forum.views.base import ForumAPIView
 
 log = logging.getLogger(__name__)
 
 
-class UserAPIView(APIView):
+class UserAPIView(ForumAPIView):
     """Users API View."""
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, user_id: str) -> Response:
         """Get user data."""
@@ -72,10 +69,8 @@ class UserAPIView(APIView):
         return Response(updated_user, status=status.HTTP_200_OK)
 
 
-class UserCreateAPIView(APIView):
+class UserCreateAPIView(ForumAPIView):
     """Create users api."""
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: Request) -> Response:
         """Create user."""
@@ -101,7 +96,7 @@ class UserCreateAPIView(APIView):
         return Response(user_data, status=status.HTTP_200_OK)
 
 
-class UserEditAPIView(APIView):
+class UserEditAPIView(ForumAPIView):
     """Edit user api."""
 
     def post(self, request: Request, user_id: str) -> Response:
@@ -124,10 +119,8 @@ class UserEditAPIView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class UserRetireAPIView(APIView):
+class UserRetireAPIView(ForumAPIView):
     """Retire user api."""
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: Request, user_id: str) -> Response:
         """Retire user."""
@@ -149,10 +142,8 @@ class UserRetireAPIView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class UserReadAPIView(APIView):
+class UserReadAPIView(ForumAPIView):
     """User read api."""
-
-    permission_classes = (AllowAny,)
 
     def post(self, request: Request, user_id: str) -> Response:
         """User read."""
@@ -170,10 +161,8 @@ class UserReadAPIView(APIView):
         return Response(serialized_data, status=status.HTTP_200_OK)
 
 
-class UserActiveThreadsAPIView(APIView):
+class UserActiveThreadsAPIView(ForumAPIView):
     """User active threads api."""
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, user_id: str) -> Response:
         """User active threads."""
@@ -203,10 +192,8 @@ class UserActiveThreadsAPIView(APIView):
         return Response(serialized_data)
 
 
-class BulkDeleteUserPostsAPIView(APIView):
+class BulkDeleteUserPostsAPIView(ForumAPIView):
     """Bulk count/delete user posts in a course."""
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, user_id: str) -> Response:
         """Return thread_count and comment_count for user in course."""
@@ -235,10 +222,8 @@ class BulkDeleteUserPostsAPIView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class UserCourseStatsAPIView(APIView):
+class UserCourseStatsAPIView(ForumAPIView):
     """User Course stats API."""
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, course_id: str) -> Response:
         """Get user course stats."""

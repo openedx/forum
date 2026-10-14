@@ -1,20 +1,17 @@
 """Forum Comments API Views."""
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api.commentables import get_commentables_stats
+from forum.views.base import ForumAPIView
 
 
-class CommentablesCountAPIView(APIView):
+class CommentablesCountAPIView(ForumAPIView):
     """
     API View to handle GET request for commentables count.
     """
-
-    permission_classes = (AllowAny,)
 
     def get(self, request: Request, course_id: str) -> Response:
         """

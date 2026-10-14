@@ -4,24 +4,21 @@ import logging
 from typing import Any
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from forum.api import pin_thread, unpin_thread
 from forum.utils import ForumV2RequestError
+from forum.views.base import ForumAPIView
 
 log = logging.getLogger(__name__)
 
 
-class PinThreadAPIView(APIView):
+class PinThreadAPIView(ForumAPIView):
     """
     API View to Pin thread.
     Handles PUT requests to pin a thread.
     """
-
-    permission_classes = (AllowAny,)
 
     def put(self, request: Request, thread_id: str) -> Response:
         """
@@ -44,13 +41,11 @@ class PinThreadAPIView(APIView):
         return Response(thread_data, status=status.HTTP_200_OK)
 
 
-class UnpinThreadAPIView(APIView):
+class UnpinThreadAPIView(ForumAPIView):
     """
     API View to Unpin a thread.
     Handles PUT requests to unpin a thread.
     """
-
-    permission_classes = (AllowAny,)
 
     def put(self, request: Request, thread_id: str) -> Response:
         """

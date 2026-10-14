@@ -42,5 +42,21 @@ def plugin_settings(settings: Any) -> None:
         settings, "COMMENTS_SERVICE_URL", "http://localhost:8000/forum"
     )
 
+    # .. toggle_name: FORUM_ENABLE_HTTP_API
+    # .. toggle_implementation: DjangoSetting
+    # .. toggle_default: False
+    # .. toggle_description: Route the legacy forum HTTP API under the plugin's
+    #   URL prefix. These endpoints are a compatibility layer from when the forum
+    #   ran as a standalone cs_comments_service on a private network. They read
+    #   the acting user from a request parameter, so a caller may act on behalf
+    #   of any user and is required to authenticate as a staff service account.
+    #   edx-platform does not use them -- it calls forum.api in process -- so they
+    #   are disabled by default. Only enable this if you serve the forum as a
+    #   separate HTTP service, and prefer to keep it off the public internet even
+    #   so, since a single leaked staff credential reaches every user's content.
+    # .. toggle_use_cases: opt_in
+    # .. toggle_creation_date: 2026-09-21
+    settings.FORUM_ENABLE_HTTP_API = getattr(settings, "FORUM_ENABLE_HTTP_API", False)
+
     # Timezone-awareness is required for mysql fields
     settings.USE_TZ = getattr(settings, "USE_TZ", True)

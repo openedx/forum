@@ -39,6 +39,10 @@ LOCALE_PATHS = [
     root("forum", "conf", "locale"),
 ]
 
+# The view tests exercise the HTTP API directly, so route it here. Production
+# deployments get FORUM_ENABLE_HTTP_API = False; see forum.urls.http_api_enabled.
+FORUM_ENABLE_HTTP_API = True
+
 ROOT_URLCONF = "forum.urls"
 
 SECRET_KEY = "insecure-secret-key"

@@ -7,15 +7,8 @@ import logging
 import pytest
 
 from forum.backends.mysql.api import MySQLBackend as patched_mysql_backend
-from test_utils.client import APIClient
 
 log = logging.getLogger(__name__)
-
-
-@pytest.fixture(name="api_client")
-def fixture_api_client() -> APIClient:
-    """Create an API client for testing."""
-    return APIClient()
 
 
 @pytest.fixture(autouse=True)

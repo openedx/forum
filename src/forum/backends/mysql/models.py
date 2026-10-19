@@ -125,6 +125,10 @@ class Content(models.Model):
     updated_at: models.DateTimeField[datetime, datetime] = models.DateTimeField(
         auto_now=True
     )
+    is_spam: models.BooleanField[bool, bool] = models.BooleanField(
+        default=False,
+        help_text="Whether this content has been identified as spam by AI moderation",
+    )
     uservote = GenericRelation(
         "UserVote",
         object_id_field="content_object_id",
@@ -318,6 +322,7 @@ class CommentThread(Content):
             "last_activity_at": self.last_activity_at,
             "edit_history": edit_history,
             "group_id": self.group_id,
+            "is_spam": self.is_spam,
         }
 
     def doc_to_hash(self) -> dict[str, Any]:
@@ -353,6 +358,9 @@ class CommentThread(Content):
             models.Index(
                 fields=["author", "course_id", "anonymous", "anonymous_to_peers"]
             ),
+            models.Index(fields=["is_spam"]),
+            models.Index(fields=["course_id", "is_spam"]),
+            models.Index(fields=["author", "course_id", "is_spam"]),
         ]
 
 
@@ -500,6 +508,7 @@ class Comment(Content):
             "updated_at": self.updated_at,
             "created_at": self.created_at,
             "endorsement": endorsement if self.endorsement else None,
+            "is_spam": self.is_spam,
         }
         if edit_history:
             data["edit_history"] = edit_history
@@ -538,6 +547,9 @@ class Comment(Content):
             models.Index(
                 fields=["author", "course_id", "anonymous", "anonymous_to_peers"]
             ),
+            models.Index(fields=["is_spam"]),
+            models.Index(fields=["course_id", "is_spam"]),
+            models.Index(fields=["author", "course_id", "is_spam"]),
         ]
 
 
@@ -774,3 +786,96 @@ class MongoContent(models.Model):
 
     class Meta:
         app_label = "forum"
+
+
+class ModerationAuditLog(models.Model):
+    """Audit log for AI moderation decisions on spam content."""
+
+    # Available actions that can be taken on spam content
+    ACTION_CHOICES = [
+        ("flagged", "Content Flagged"),
+        ("soft_deleted", "Content Soft Deleted"),
+        ("no_action", "No Action Taken"),
+    ]
+
+    # Only spam classifications since we don't store non-spam entries
+    CLASSIFICATION_CHOICES = [
+        ("spam", "Spam"),
+        ("spam_or_scam", "Spam or Scam"),
+    ]
+
+    timestamp: models.DateTimeField[datetime, datetime] = models.DateTimeField(
+        default=timezone.now, help_text="When the moderation decision was made"
+    )
+    body: models.TextField[str, str] = models.TextField(
+        help_text="The content body that was moderated"
+    )
+    classifier_output: models.JSONField[dict[str, Any], dict[str, Any]] = (
+        models.JSONField(help_text="Full output from the AI classifier")
+    )
+    reasoning: models.TextField[str, str] = models.TextField(
+        help_text="AI reasoning for the decision"
+    )
+    classification: models.CharField[str, str] = models.CharField(
+        max_length=20,
+        choices=CLASSIFICATION_CHOICES,
+        help_text="AI classification result",
+    )
+    actions_taken: models.JSONField[list[str], list[str]] = models.JSONField(
+        default=list,
+        help_text="List of actions taken based on moderation (e.g., ['flagged', 'soft_deleted'])",
+    )
+    confidence_score: models.FloatField[Optional[float], float] = models.FloatField(
+        null=True, blank=True, help_text="AI confidence score if available"
+    )
+    moderator_override: models.BooleanField[bool, bool] = models.BooleanField(
+        default=False, help_text="Whether a human moderator overrode the AI decision"
+    )
+    override_reason: models.TextField[Optional[str], str] = models.TextField(
+        blank=True, null=True, help_text="Reason for moderator override"
+    )
+    moderator: models.ForeignKey[User, User] = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="moderation_actions",
+        help_text="Human moderator who made override",
+    )
+    original_author: models.ForeignKey[User, User] = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="moderated_content",
+        help_text="Original author of the moderated content",
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a dictionary representation of the model."""
+        return {
+            "_id": str(self.pk),
+            "timestamp": self.timestamp.isoformat(),
+            "body": self.body,
+            "classifier_output": self.classifier_output,
+            "reasoning": self.reasoning,
+            "classification": self.classification,
+            "actions_taken": self.actions_taken,
+            "confidence_score": self.confidence_score,
+            "moderator_override": self.moderator_override,
+            "override_reason": self.override_reason,
+            "moderator_id": str(self.moderator.pk) if self.moderator else None,
+            "moderator_username": self.moderator.username if self.moderator else None,
+            "original_author_id": str(self.original_author.pk),
+            "original_author_username": self.original_author.username,
+        }
+
+    class Meta:
+        app_label = "forum"
+        verbose_name = "Moderation Audit Log"
+        verbose_name_plural = "Moderation Audit Logs"
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["timestamp"]),
+            models.Index(fields=["classification"]),
+            models.Index(fields=["original_author"]),
+            models.Index(fields=["moderator"]),
+        ]

@@ -87,6 +87,21 @@ Optional:
     Spam verdicts are cached by content hash for 24 hours, so an identical
     repost costs no second API call. Clean verdicts are never cached.
 
+``AI_MODERATION_TRUSTED_LINK_DOMAINS``
+    Domains whose links, including links to their subdomains, are removed from
+    a post before it is classified, so links to sites your learners and course
+    teams legitimately share are never mistaken for link spam. A post whose
+    links are all trusted is not classified at all, unless it also contains a
+    link to another domain, an email address, a phone number or a messaging
+    app such as WhatsApp or Telegram; such a post is classified without its
+    trusted links. Empty by default, so links are classified like any other
+    text until you list domains here. Avoid sites anyone can publish arbitrary
+    pages on, such as ``github.io``: the classifier never sees links to a
+    trusted domain. Keep in mind that pages on a trusted domain, such as a
+    shared code snippet or a meeting registration page, are written by whoever
+    posts them, so a lure can sit on the trusted page itself, and a short post
+    that only links to a trusted domain is not classified at all.
+
 
 3. Turn it on
 *************

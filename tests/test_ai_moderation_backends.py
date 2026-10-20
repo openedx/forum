@@ -127,6 +127,7 @@ class TestPluginSettings:
         assert site.AI_MODERATION_BACKEND is None
         assert site.AI_MODERATION_API_URL is None
         assert site.AI_MODERATION_USER_ID is None
+        assert site.AI_MODERATION_TRUSTED_LINK_DOMAINS == []
 
     def test_no_provider_specific_settings_are_declared(self) -> None:
         """
@@ -154,6 +155,7 @@ class TestPluginSettings:
             AI_MODERATION_CONNECTION_TIMEOUT=0.5,
             AI_MODERATION_READ_TIMEOUT=20,
             AI_MODERATION_USER_ID=758316,
+            AI_MODERATION_TRUSTED_LINK_DOMAINS=["courses.example.edu"],
         )
         plugin_settings(site)
 
@@ -163,6 +165,7 @@ class TestPluginSettings:
         assert site.AI_MODERATION_CONNECTION_TIMEOUT == 0.5
         assert site.AI_MODERATION_READ_TIMEOUT == 20
         assert site.AI_MODERATION_USER_ID == 758316
+        assert site.AI_MODERATION_TRUSTED_LINK_DOMAINS == ["courses.example.edu"]
 
     def test_settings_module_imports_before_apps_are_ready(self) -> None:
         """

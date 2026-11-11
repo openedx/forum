@@ -354,3 +354,42 @@ def test_is_spam_is_only_written_when_passed() -> None:
     comment.refresh_from_db()
     assert thread.is_spam is True
     assert comment.is_spam is True
+
+
+@pytest.mark.django_db
+def test_get_comments_orders_by_id_and_paginates() -> None:
+    """Test that get_comments orders responses numerically and paginates in every mode."""
+    author = User.objects.create(username="author-user")
+    thread = CommentThread.objects.create(
+        author=author,
+        course_id="course123",
+        title="Test Thread",
+        body="This is a test thread",
+        thread_type="discussion",
+        context="course",
+    )
+    for i in range(12):
+        backend.create_comment(
+            {
+                "body": f"Comment {i}",
+                "course_id": "course123",
+                "author_id": str(author.pk),
+                "comment_thread_id": str(thread.pk),
+                "author_username": "author-user",
+            }
+        )
+    filters = {"comment_thread_id": str(thread.pk), "parent_id": None}
+
+    def ids(**kwargs: object) -> list[int]:
+        return [int(c["_id"]) for c in backend.get_comments(**filters, **kwargs)]
+
+    ascending = ids(sort=1)
+    assert len(ascending) == 12
+    assert ascending == sorted(ascending)
+    assert ids(sort=-1) == ascending[::-1]
+    # No sort still returns every row in a deterministic order.
+    assert ids() == ascending
+    # Pagination: limit with skip, skip alone, and limit alone.
+    assert ids(sort=1, resp_skip=2, resp_limit=3) == ascending[2:5]
+    assert ids(sort=1, resp_skip=10) == ascending[10:]
+    assert ids(sort=-1, resp_limit=4) == ascending[::-1][:4]

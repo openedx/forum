@@ -1042,3 +1042,47 @@ def test_pagination_in_thread_comments(
     assert len(thread["non_endorsed_responses"]) == comments_count - resp_limit
     assert thread["resp_skip"] == resp_limit
     assert thread["resp_limit"] == resp_limit
+
+
+def test_responses_are_ordered_numerically_by_id(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """
+    Test that responses are ordered by their numeric id in both directions.
+
+    Responses used to be sorted by ``sort_key``, a string holding the primary
+    key, so once a thread had more than nine responses they came back in
+    lexicographic order ("1", "10", "11", "2", ...), which looked as if the
+    sort order was not being applied at all.
+    """
+    backend = patched_get_backend
+    user_id, thread_id = setup_models(backend, thread_type="discussion")
+    # Enough responses for two-digit ids.
+    for i in range(12):
+        backend.create_comment(
+            {
+                "body": f"Comment {i}",
+                "course_id": "course1",
+                "author_id": user_id,
+                "comment_thread_id": thread_id,
+                "author_username": "user1",
+            }
+        )
+
+    def response_ids(reverse_order: str) -> list[int]:
+        response = api_client.get_json(
+            f"/api/v2/threads/{thread_id}",
+            params={
+                "with_responses": True,
+                "resp_skip": 0,
+                "resp_limit": 20,
+                "reverse_order": reverse_order,
+            },
+        )
+        assert response.status_code == 200
+        return [int(child["id"]) for child in response.json()["children"]]
+
+    oldest_first = response_ids("false")
+    assert len(oldest_first) == 12
+    assert oldest_first == sorted(oldest_first)
+    assert response_ids("true") == sorted(oldest_first, reverse=True)

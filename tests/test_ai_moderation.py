@@ -5,6 +5,7 @@ from typing import Any, Generator
 from unittest.mock import Mock, MagicMock, patch
 
 import pytest
+from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import override_settings
@@ -457,6 +458,236 @@ class TestAIModerationCaching:  # pylint: disable=redefined-outer-name,unused-ar
             )
             assert second["is_spam"] is True
             assert mock_post.call_count == 1
+
+
+class TestAIModerationTrustedLinks:  # pylint: disable=redefined-outer-name,unused-argument
+    """Tests for removing trusted links before content is classified."""
+
+    @pytest.fixture(autouse=True)
+    def trusted_link_domains(self) -> Generator[None, None, None]:
+        """Trust domains the way a deployment's configuration lists them."""
+        with override_settings(
+            AI_MODERATION_TRUSTED_LINK_DOMAINS=["codepen.io", "github.com"]
+        ):
+            yield
+
+    def test_trusted_links_are_removed_before_classification(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """The classifier never sees a link to a trusted domain."""
+        classify = Mock(
+            return_value={"classification": "not_spam", "reasoning": "Legitimate"}
+        )
+        backend = Mock()
+
+        with patch.object(ai_service.moderation_backend, "classify", classify):
+            result = ai_service.moderate_and_flag_content(
+                '<p>My pen: <a href="https://codepen.io/learner/pen/abc">'
+                "https://codepen.io/learner/pen/abc</a> - notes at "
+                "https://example.com/notes</p>",
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=backend,
+            )
+
+        classify.assert_called_once_with(
+            "<p>My pen:  - notes at https://example.com/notes</p>"
+        )
+        assert result["is_spam"] is False
+        backend.flag_content_as_spam.assert_not_called()
+
+    def test_trusted_links_without_other_contact_are_not_classified(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """
+        A post whose links are all trusted, and that offers no other way to be
+        contacted or redirected, is not spam however vague its wording.
+        """
+        classify = Mock(
+            return_value={"classification": "spam_or_scam", "reasoning": "Vague"}
+        )
+        backend = Mock()
+
+        caplog.set_level("INFO", logger="forum.ai_moderation.service")
+
+        with patch.object(ai_service.moderation_backend, "classify", classify):
+            result = ai_service.moderate_and_flag_content(
+                "<p>Use this like fo registation : "
+                '<a href="https://codepen.io/learner/pen/abc#/registration" '
+                'target="_blank" rel="noopener">URL</a></p>',
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=backend,
+            )
+
+        classify.assert_not_called()
+        assert result["is_spam"] is False
+        assert result["actions_taken"] == ["no_action"]
+        backend.flag_content_as_spam.assert_not_called()
+        backend.flag_as_abuse.assert_not_called()
+        assert "AI moderation skipped, only trusted links: comment456" in caplog.text
+
+    @pytest.mark.parametrize(
+        "other_contact",
+        [
+            "WhatsApp +1-555-0199",
+            "mail me at tutor@example.com",
+            "or see https://example.com/offer",
+            "and codepen.oi/editor/learner/pen/019f",
+        ],
+    )
+    def test_trusted_links_with_other_contact_are_classified(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+        other_contact: str,
+    ) -> None:
+        """Any other way to reach or redirect readers sends the post to the classifier."""
+        classify = Mock(
+            return_value={"classification": "not_spam", "reasoning": "Legitimate"}
+        )
+
+        with patch.object(ai_service.moderation_backend, "classify", classify):
+            ai_service.moderate_and_flag_content(
+                f"Register here: https://codepen.io/pen/1 {other_contact}",
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=Mock(),
+            )
+
+        classify.assert_called_once_with(f"Register here:  {other_contact}")
+
+    def test_spam_with_a_trusted_link_is_still_flagged(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """Adding a trusted link to spam does not get the spam through."""
+        mock_waffle_flags["auto_delete"].return_value = False
+        backend = Mock()
+
+        with patch(
+            "requests.post", return_value=stub_provider_response(SPAM_RESPONSE)
+        ) as mock_post:
+            result = ai_service.moderate_and_flag_content(
+                "Guaranteed A grades! WhatsApp +1-555-0199 https://codepen.io/pen/1",
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=backend,
+            )
+
+        sent = mock_post.call_args.kwargs["json"]["input"]
+        assert sent == "Guaranteed A grades! WhatsApp +1-555-0199 "
+        assert result["is_spam"] is True
+        assert result["actions_taken"] == ["flagged"]
+        backend.flag_content_as_spam.assert_called_once()
+
+    def test_content_that_is_only_trusted_links_is_not_classified(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """With nothing left to classify, no classifier call is made."""
+        classify = Mock()
+        backend = Mock()
+
+        with patch.object(ai_service.moderation_backend, "classify", classify):
+            result = ai_service.moderate_and_flag_content(
+                '<p><a href="https://codepen.io/learner/pen/abc">'
+                "https://codepen.io/learner/pen/abc</a></p>",
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=backend,
+            )
+
+        classify.assert_not_called()
+        assert result["is_spam"] is False
+        assert result["actions_taken"] == ["no_action"]
+        backend.flag_content_as_spam.assert_not_called()
+        backend.flag_as_abuse.assert_not_called()
+
+    def test_untrusted_links_are_still_classified(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """Links to domains that are not trusted reach the classifier unchanged."""
+        content = "Order now at https://top-grade-helpers.example"
+        classify = Mock(
+            return_value={"classification": "spam_or_scam", "reasoning": "Spam"}
+        )
+        mock_waffle_flags["auto_delete"].return_value = False
+
+        with patch.object(ai_service.moderation_backend, "classify", classify):
+            result = ai_service.moderate_and_flag_content(
+                content,
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=Mock(),
+            )
+
+        classify.assert_called_once_with(content)
+        assert result["is_spam"] is True
+
+    def test_trusted_links_can_be_turned_off(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """An empty AI_MODERATION_TRUSTED_LINK_DOMAINS classifies links as before."""
+        content = "My pen: https://codepen.io/learner/pen/abc"
+        classify = Mock(
+            return_value={"classification": "not_spam", "reasoning": "Legitimate"}
+        )
+
+        with override_settings(AI_MODERATION_TRUSTED_LINK_DOMAINS=[]), patch.object(
+            ai_service.moderation_backend, "classify", classify
+        ):
+            ai_service.moderate_and_flag_content(
+                content,
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=Mock(),
+            )
+
+        classify.assert_called_once_with(content)
+
+    def test_nothing_is_trusted_unless_configured(
+        self,
+        ai_service: AIModerationService,
+        mock_waffle_flags: dict[str, Mock],
+        sample_comment_content: dict[str, Any],
+    ) -> None:
+        """Forum ships no trusted domains; the list comes from configuration."""
+        content = "My pen: https://codepen.io/learner/pen/abc"
+        classify = Mock(
+            return_value={"classification": "not_spam", "reasoning": "Legitimate"}
+        )
+
+        with override_settings(), patch.object(
+            ai_service.moderation_backend, "classify", classify
+        ):
+            del django_settings.AI_MODERATION_TRUSTED_LINK_DOMAINS
+            ai_service.moderate_and_flag_content(
+                content,
+                sample_comment_content,
+                course_id="course-v1:edX+DemoX+Demo",
+                backend=Mock(),
+            )
+
+        classify.assert_called_once_with(content)
 
 
 class TestAIModerationErrorHandling:  # pylint: disable=redefined-outer-name,unused-argument

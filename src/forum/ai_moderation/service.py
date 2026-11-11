@@ -4,7 +4,7 @@ AI Moderation utilities for forum content.
 
 import hashlib
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -24,6 +24,11 @@ from forum.ai_moderation.defaults import (
     DEFAULT_FLAGGED_CACHE_PREFIX,
     DEFAULT_FLAGGED_CACHE_TTL,
     DEFAULT_REASONING,
+)
+from forum.ai_moderation.links import (
+    has_risk_signals,
+    is_blank,
+    strip_trusted_links,
 )
 from forum.backends.mysql.models import ModerationAuditLog
 from forum.utils import ForumV2RequestError
@@ -145,6 +150,11 @@ class AIModerationService:
         return getattr(
             settings, "AI_MODERATION_FLAGGED_CACHE_PREFIX", DEFAULT_FLAGGED_CACHE_PREFIX
         )
+
+    @property
+    def trusted_link_domains(self) -> Sequence[str]:
+        """Domains whose links are removed from content before it is classified."""
+        return getattr(settings, "AI_MODERATION_TRUSTED_LINK_DOMAINS", None) or ()
 
     @property
     def moderation_backend_path(self) -> Optional[str]:
@@ -283,6 +293,24 @@ class AIModerationService:
         course_key = CourseKey.from_string(course_id) if course_id else None
         if not is_ai_moderation_enabled(course_key):  # type: ignore[no-untyped-call]
             return result
+
+        # The classifier cannot tell a link to a trusted domain from link spam,
+        # so it only gets to see the rest of the post.
+        stripped = strip_trusted_links(content, self.trusted_link_domains)
+        if is_blank(stripped):
+            result["reasoning"] = "Nothing to classify once trusted links are removed"
+            return result
+        # A post sharing trusted links that offers no other way to be contacted
+        # or redirected is not spam, however its wording reads to the classifier.
+        if stripped != content and not has_risk_signals(stripped):
+            # Skipped posts get no audit log entry, so this is the only record
+            # of how often the trusted-link exemption is used, or abused.
+            log.info(
+                f"AI moderation skipped, only trusted links: {content_instance.get('_id')}"
+            )
+            result["reasoning"] = "Only trusted links, and no other contact or link"
+            return result
+        content = stripped
 
         # If we've already flagged this exact content before, reuse the cached result
         moderation_result = self._get_cached_flagged_result(content)

@@ -650,6 +650,29 @@ def test_computes_endorsed_correctly(
     assert thread["endorsed"] is True
 
 
+def test_computes_endorsed_correctly_in_thread_list(
+    api_client: APIClient, patched_get_backend: Any
+) -> None:
+    """Test computes endorsed correctly through the thread list API."""
+    backend = patched_get_backend
+    _, thread_id = setup_models(backend)
+    comment_id = backend.create_comment(
+        {
+            "body": "Comment 1",
+            "course_id": "course1",
+            "author_id": "1",
+            "comment_thread_id": thread_id,
+            "author_username": "user1",
+        }
+    )
+    backend.update_comment(comment_id=comment_id, endorsed=True)
+    response = api_client.get_json("/api/v2/threads", {"course_id": "course1"})
+    assert response.status_code == 200
+    results = response.json().get("collection", [])
+    assert len(results) == 1
+    assert results[0]["endorsed"] is True
+
+
 def test_no_children_for_informational_request(
     api_client: APIClient, patched_get_backend: Any
 ) -> None:

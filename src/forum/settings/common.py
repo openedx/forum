@@ -48,8 +48,9 @@ def plugin_settings(settings: Any) -> None:
     )
 
     # Enable forum service
-    if "ENABLE_DISCUSSION_SERVICE" not in settings.FEATURES:
-        settings.FEATURES["ENABLE_DISCUSSION_SERVICE"] = True
+    settings.ENABLE_DISCUSSION_SERVICE = getattr(
+        settings, "ENABLE_DISCUSSION_SERVICE", True
+    )
 
     # URL prefix must match the regex in the url_config of the plugin app
     settings.COMMENTS_SERVICE_URL = getattr(

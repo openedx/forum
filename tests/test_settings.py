@@ -8,9 +8,7 @@ from forum.settings.production import plugin_settings
 
 
 def test_plugin_settings_typesense() -> None:
-    settings = MagicMock(
-        spec=["TYPESENSE_ENABLED", "FEATURES"], TYPESENSE_ENABLED=True, FEATURES={}
-    )
+    settings = MagicMock(spec=["TYPESENSE_ENABLED"], TYPESENSE_ENABLED=True)
 
     # This function changes settings in-place.
     plugin_settings(settings)

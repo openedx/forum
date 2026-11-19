@@ -116,7 +116,7 @@ class TestPluginSettings:
 
     def test_defaults_are_declared(self) -> None:
         """The settings a deployment must fill in are declared, and left empty."""
-        site = SimpleNamespace(FEATURES={})
+        site = SimpleNamespace()
         plugin_settings(site)
 
         assert site.AI_MODERATION_SYSTEM_MESSAGE == DEFAULT_SYSTEM_MESSAGE
@@ -135,7 +135,7 @@ class TestPluginSettings:
         Declaring, say, a bearer token here would bake one provider's auth
         scheme into the generic layer.
         """
-        site = SimpleNamespace(FEATURES={})
+        site = SimpleNamespace()
         plugin_settings(site)
 
         assert not hasattr(site, "AI_MODERATION_API_KEY")
@@ -147,7 +147,6 @@ class TestPluginSettings:
         read, so a site that already chose a provider keeps it.
         """
         site = SimpleNamespace(
-            FEATURES={},
             AI_MODERATION_BACKEND=STUB_PROVIDER_BACKEND,
             AI_MODERATION_API_URL="https://provider.example.com/v1/moderate",
             AI_MODERATION_SYSTEM_MESSAGE="the deployed prompt",
